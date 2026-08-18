@@ -30,6 +30,7 @@ button { color: inherit; cursor: pointer; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 14px #b9ff6688; }
 .session-list { display: grid; gap: 10px; }
 .session-card { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 10px; text-align: left; padding: 17px; border: 1px solid var(--line); background: linear-gradient(145deg, var(--panel), #0f1216); border-radius: 18px; }
+.session-card > div:first-child { min-width: 0; }
 .session-card:active { transform: scale(.99); }
 .session-card h2 { margin: 0 0 7px; font-size: 1.08rem; }
 .session-card p { margin: 0; color: var(--muted); font: .75rem/1.45 ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 68vw; }
