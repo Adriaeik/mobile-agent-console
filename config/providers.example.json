@@ -1,0 +1,19 @@
+[
+  {
+    "id": "aider",
+    "label": "Aider",
+    "command": "aider",
+    "models": ["provider/model-name"],
+    "modelPlaceholder": "provider/model",
+    "baseArgs": [],
+    "modelArgs": ["--model", "{model}"],
+    "permissions": [
+      {
+        "id": "default",
+        "label": "Default",
+        "args": [],
+        "default": true
+      }
+    ]
+  }
+]

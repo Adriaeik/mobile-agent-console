@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b0d10">
+  <title>Agent Console</title>
+  <link rel="stylesheet" href="/vendor/xterm/xterm.css">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main id="dashboard" class="page">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">PRIVATE TAILNET CONSOLE</p>
+        <h1>Agents</h1>
+      </div>
+      <button id="refresh" class="icon-button" aria-label="Refresh sessions">↻</button>
+    </header>
+
+    <section class="identity-strip">
+      <span class="status-dot"></span>
+      <span id="identity">Connecting…</span>
+    </section>
+
+    <section id="sessions" class="session-list" aria-live="polite"></section>
+    <button id="new-session" class="primary floating">＋ New session</button>
+  </main>
+
+  <section id="create-page" class="page hidden" aria-labelledby="create-title">
+    <header class="topbar compact">
+      <button class="back icon-button" data-target="dashboard" aria-label="Back">‹</button>
+      <h2 id="create-title">New session</h2>
+      <span class="spacer"></span>
+    </header>
+    <form id="create-form" class="form-card">
+      <label>Session name
+        <input id="session-name" name="name" required maxlength="48" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,47}" placeholder="api-refactor" autocomplete="off">
+      </label>
+      <label>Working directory
+        <div class="input-action">
+          <input id="session-path" name="path" required autocomplete="off">
+          <button id="browse" type="button" class="secondary">Browse</button>
+        </div>
+      </label>
+      <label>Agent
+        <select id="provider" name="provider"></select>
+      </label>
+      <label id="model-field">Model
+        <input id="model" name="model" list="model-options" placeholder="default">
+        <datalist id="model-options"></datalist>
+      </label>
+      <label>Permissions
+        <select id="permission" name="permission"></select>
+      </label>
+      <div id="danger-warning" class="warning hidden">
+        <strong>Full machine control</strong>
+        <span>This profile can execute commands without asking. Confirm before starting.</span>
+        <label class="check"><input id="confirm-dangerous" type="checkbox"> I understand</label>
+      </div>
+      <label id="prompt-field">Initial message <span class="muted">optional</span>
+        <textarea id="initial-prompt" name="prompt" rows="4" maxlength="8000" placeholder="What should the agent work on?"></textarea>
+      </label>
+      <p id="create-error" class="error" role="alert"></p>
+      <button class="primary full" type="submit">Start in tmux</button>
+    </form>
+  </section>
+
+  <section id="terminal-page" class="terminal-page hidden" aria-label="Terminal session">
+    <header class="terminal-header">
+      <button id="terminal-back" class="icon-button" aria-label="Back">‹</button>
+      <div class="terminal-title"><strong id="terminal-name"></strong><span id="terminal-state">Connecting…</span></div>
+      <button id="terminal-fit" class="icon-button" aria-label="Fit terminal">⛶</button>
+    </header>
+    <div id="terminal" aria-label="Interactive terminal"></div>
+    <div class="key-row" aria-label="Terminal control keys">
+      <button data-key="\u001b">Esc</button>
+      <button data-key="\u0003">Ctrl-C</button>
+      <button data-key="\t">Tab</button>
+      <button data-key="\u001b[A">↑</button>
+      <button data-key="\u001b[B">↓</button>
+      <button data-key="\r">Enter</button>
+    </div>
+    <form id="composer" class="composer">
+      <textarea id="message" rows="1" placeholder="Send text to the terminal…"></textarea>
+      <button class="send" type="submit" aria-label="Send">↑</button>
+    </form>
+  </section>
+
+  <dialog id="directory-dialog">
+    <header><h2>Choose folder</h2><button id="directory-close" class="icon-button">×</button></header>
+    <p id="directory-current" class="path"></p>
+    <div id="directory-list" class="directory-list"></div>
+    <button id="directory-select" class="primary full">Use this folder</button>
+  </dialog>
+
+  <template id="empty-template">
+    <div class="empty"><span>⌁</span><h2>No tmux sessions</h2><p>Start an agent or open a raw shell.</p></div>
+  </template>
+  <script src="/vendor/xterm/xterm.js"></script>
+  <script src="/vendor/xterm/addon-fit.js"></script>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+[Unit]
+Description=Mobile Agent Console
+After=default.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.local/share/mobile-agent-console
+EnvironmentFile=-%h/.config/mobile-agent-console/env
+Environment=NODE_ENV=production
+Environment=TERM=xterm-256color
+ExecStart=/usr/bin/bash -lc 'exec node src/server.js'
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=10
+KillMode=process
+UMask=0077
+
+[Install]
+WantedBy=default.target
