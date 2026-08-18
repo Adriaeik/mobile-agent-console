@@ -1,0 +1,12 @@
+node_modules/
+.env*
+!.env.example
+.npmrc
+*.key
+*.pem
+coverage/
+playwright-report/
+test-results/
+*.log
+*.pid
+.DS_Store
