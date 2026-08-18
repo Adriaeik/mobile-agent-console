@@ -16,6 +16,13 @@ terminal agents running in tmux.
 
 ## Why
 
+I built this because I could not get a Codex mobile workflow that worked
+reliably with the existing tmux sessions on my Ubuntu workstation. OpenAI now
+documents [Remote in the ChatGPT mobile app](https://learn.chatgpt.com/blog/mastering-codex-remote-for-engineering),
+but this project solves the narrower need of exposing the exact Codex, Claude
+Code, or shell TUIs already running locally. If you have the same setup, it may
+be useful to you too.
+
 Start an agent at your desk, then safely reconnect from your phone to answer an
 approval prompt, check a deploy, or continue the full terminal session. The
 agent keeps running in tmux when the browser disconnects.
