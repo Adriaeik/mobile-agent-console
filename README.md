@@ -3,13 +3,16 @@
 A small, self-hosted mobile UI for Codex, Claude Code, shells, and other
 terminal agents running in tmux.
 
-**Session list**
-
-![Mobile dashboard showing two tmux sessions](docs/mobile-dashboard.png)
-
-**Active session**
-
-![Mobile terminal attached to an active tmux session](docs/mobile-session.png)
+<table>
+  <tr>
+    <th>Session list</th>
+    <th>Active session</th>
+  </tr>
+  <tr>
+    <td><img src="docs/mobile-dashboard.png" alt="Mobile dashboard showing two tmux sessions" width="360"></td>
+    <td><img src="docs/mobile-session.png" alt="Mobile terminal attached to an active tmux session" width="360"></td>
+  </tr>
+</table>
 
 ## Why
 
