@@ -16,6 +16,12 @@ terminal agents running in tmux.
 
 ## Why
 
+I built this because [Codex Remote](https://learn.chatgpt.com/docs/remote) in the
+ChatGPT mobile app currently requires a connected Mac or Windows PC, while my
+Codex sessions run on Ubuntu. I wanted access to the exact Codex, Claude Code,
+or shell TUI already running in tmux, so I made this thin Tailscale wrapper. If
+you have the same gap in your workflow, it may be useful to you too.
+
 Start an agent at your desk, then safely reconnect from your phone to answer an
 approval prompt, check a deploy, or continue the full terminal session. The
 agent keeps running in tmux when the browser disconnects.
