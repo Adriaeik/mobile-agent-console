@@ -100,8 +100,9 @@
     <p class="control-heading">Terminal keys</p>
     <div class="tmux-actions">
       <button data-key="\u0003"><strong>Interrupt</strong><span>Ctrl-C</span></button>
-      <button data-key="\u001b[5~"><strong>Page up</strong><span>PgUp</span></button>
-      <button data-key="\u001b[6~"><strong>Page down</strong><span>PgDn</span></button>
+      <button data-copy-scroll="page-up"><strong>Page up</strong><span>PgUp</span></button>
+      <button data-copy-scroll="page-down"><strong>Page down</strong><span>PgDn</span></button>
+      <button id="tmux-exit-copy"><strong>Exit scroll</strong><span>q</span></button>
       <button id="composer-toggle" aria-controls="composer" aria-expanded="false"><strong>Text composer</strong><span>Show</span></button>
     </div>
     <p class="control-heading">tmux prefix commands</p>

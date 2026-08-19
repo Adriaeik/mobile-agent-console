@@ -68,6 +68,7 @@ textarea { resize: vertical; }
 .terminal-title span { color: var(--muted); font-size: .68rem; }
 #terminal { min-height: 0; padding: 8px; overflow: hidden; }
 #terminal .xterm { height: 100%; }
+#terminal.copy-mode { touch-action: none; overscroll-behavior: contain; }
 .key-row { display: flex; gap: 6px; overflow-x: auto; padding: 7px 8px; border-top: 1px solid #1d2228; }
 .key-row button { min-width: 54px; border: 1px solid #313942; background: #15191e; border-radius: 9px; padding: 9px 10px; font: .72rem ui-monospace, monospace; }
 .key-row button.active { color: #0a1005; border-color: var(--accent); background: var(--accent); font-weight: 800; }

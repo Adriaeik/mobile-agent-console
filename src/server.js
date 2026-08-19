@@ -6,7 +6,7 @@ import { WebSocketServer } from "ws";
 import pty from "node-pty";
 import { assertSafeConfiguration, authMiddleware, authorizeRequest, isLoopback, validateOrigin } from "./security.js";
 import { buildLaunch, loadProviders, publicProvider } from "./providers.js";
-import { createSession, hasSessionId, killSession, listDirectories, listSessions } from "./tmux.js";
+import { createSession, getCopyModeState, hasSessionId, killSession, listDirectories, listSessions, scrollCopyMode, setCopyMode } from "./tmux.js";
 import { InputError, parseAllowedRoots, validateDirectory, validateOption, validatePrompt, validateSessionName } from "./validation.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -119,6 +119,21 @@ server.on("upgrade", async (req, socket, head) => {
 
 sockets.on("connection", (ws, req) => {
   const target = `${req.sessionId}:0.0`;
+  let controlQueue = Promise.resolve();
+  const sendJson = (message) => {
+    if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(message));
+  };
+  const sendControlState = async (state = null) => {
+    const current = state || await getCopyModeState(target);
+    sendJson({ type: "tmux-state", ...current });
+  };
+  const queueControl = (operation) => {
+    controlQueue = controlQueue.then(operation).then(sendControlState).catch(async (error) => {
+      console.error("tmux control failed:", error.message);
+      sendJson({ type: "tmux-error", error: "tmux control failed; state was refreshed." });
+      try { await sendControlState(); } catch { /* pane may have exited */ }
+    });
+  };
   const args = process.env.TMUX_SOCKET_NAME
     ? ["-L", process.env.TMUX_SOCKET_NAME, "attach-session", "-t", target]
     : ["attach-session", "-t", target];
@@ -130,7 +145,7 @@ sockets.on("connection", (ws, req) => {
     env: { ...process.env, TERM: "xterm-256color", COLORTERM: "truecolor" }
   });
   terminal.onData((data) => {
-    if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: "output", data }));
+    sendJson({ type: "output", data });
   });
   terminal.onExit(({ exitCode }) => {
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: "exit", exitCode }));
@@ -141,6 +156,10 @@ sockets.on("connection", (ws, req) => {
       const message = JSON.parse(raw.toString());
       if (message.type === "input" && typeof message.data === "string" && message.data.length <= 65536) {
         terminal.write(message.data);
+      } else if (message.type === "copy-mode" && typeof message.enabled === "boolean") {
+        queueControl(() => setCopyMode(target, message.enabled));
+      } else if (message.type === "copy-scroll") {
+        queueControl(() => scrollCopyMode(target, message.action, message.count));
       } else if (message.type === "resize") {
         const cols = Math.max(20, Math.min(300, Number(message.cols) || 100));
         const rows = Math.max(8, Math.min(120, Number(message.rows) || 32));
@@ -150,6 +169,7 @@ sockets.on("connection", (ws, req) => {
   });
   ws.on("close", () => terminal.kill());
   ws.on("error", () => terminal.kill());
+  queueControl(() => getCopyModeState(target));
 });
 
 server.listen(port, host, () => {
