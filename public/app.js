@@ -1,5 +1,8 @@
 const $ = (selector) => document.querySelector(selector);
-const state = { config: null, sessions: [], socket: null, terminal: null, fit: null, active: null, copyMode: false };
+const state = {
+  config: null, sessions: [], socket: null, terminal: null, fit: null, active: null,
+  copyMode: false, copyModePending: false, touchStartY: null, touchCurrentY: null
+};
 
 async function request(url, options = {}) {
   const response = await fetch(url, { headers: { "Content-Type": "application/json", ...(options.headers || {}) }, ...options });
@@ -98,31 +101,79 @@ async function endSession(id, name) {
   catch (error) { alert(error.message); }
 }
 
+function sendSocket(message) {
+  if (state.socket?.readyState !== WebSocket.OPEN) return false;
+  state.socket.send(JSON.stringify(message));
+  return true;
+}
+
 function send(data) {
-  if (state.socket?.readyState === WebSocket.OPEN) state.socket.send(JSON.stringify({ type: "input", data }));
+  return sendSocket({ type: "input", data });
 }
 
 function sendTmuxKey(key) {
   send(`\u0002${key}`);
-  if (key === "[") setCopyMode(true);
   state.terminal?.focus();
 }
 
 function setCopyMode(active) {
   state.copyMode = active;
+  state.copyModePending = false;
   const button = $("#tmux-copy");
   button.classList.toggle("active", active);
+  button.disabled = false;
   button.setAttribute("aria-pressed", String(active));
   button.title = active ? "Exit tmux copy mode (q)" : "Enter tmux copy mode (Ctrl-B then [)";
+  $("#terminal").classList.toggle("copy-mode", active);
+  if (state.socket?.readyState === WebSocket.OPEN) {
+    $("#terminal-state").textContent = active ? "Scroll mode · swipe or use arrows" : "Live tmux · window 0";
+  }
+}
+
+function requestCopyMode(enabled) {
+  if (state.copyModePending || !sendSocket({ type: "copy-mode", enabled })) return;
+  state.copyModePending = true;
+  $("#tmux-copy").disabled = true;
+  state.terminal?.focus();
 }
 
 function toggleCopyMode() {
-  if (state.copyMode) {
-    send("q");
-    setCopyMode(false);
-  } else {
-    sendTmuxKey("[");
+  requestCopyMode(!state.copyMode);
+}
+
+function scrollCopyMode(action, count = 1) {
+  sendSocket({ type: "copy-scroll", action, count });
+  state.terminal?.focus();
+}
+
+function handleTerminalInput(data) {
+  if (!state.copyMode) return send(data);
+  if (data === "q" || data === "\u001b" || data === "\r") return requestCopyMode(false);
+  if (data === "\u001b[A") return scrollCopyMode("line-up");
+  if (data === "\u001b[B") return scrollCopyMode("line-down");
+  return send(data);
+}
+
+function captureScrollTouch(event) {
+  if (!state.copyMode || event.touches.length !== 1) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  state.touchCurrentY = event.touches[0].clientY;
+  if (state.touchStartY === null) state.touchStartY = state.touchCurrentY;
+}
+
+function finishScrollTouch(event) {
+  if (!state.copyMode || state.touchStartY === null) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  const distance = state.touchCurrentY - state.touchStartY;
+  state.touchStartY = null;
+  state.touchCurrentY = null;
+  if (Math.abs(distance) < 12) {
+    state.terminal?.focus();
+    return;
   }
+  scrollCopyMode(distance > 0 ? "line-up" : "line-down", Math.round(Math.abs(distance) / 12));
 }
 
 function closeTmuxControls() {
@@ -145,6 +196,7 @@ function closeTerminal() {
   state.terminal = null;
   state.fit = null;
   state.active = null;
+  state.copyModePending = false;
   setCopyMode(false);
   setComposerVisible(false);
   showPage("dashboard");
@@ -185,9 +237,15 @@ function openTerminal(id, name) {
     const message = JSON.parse(data);
     if (message.type === "output") state.terminal.write(message.data);
     if (message.type === "exit") $("#terminal-state").textContent = `Terminal exited (${message.exitCode})`;
+    if (message.type === "tmux-state") setCopyMode(message.copyMode === true);
+    if (message.type === "tmux-error") {
+      state.copyModePending = false;
+      $("#tmux-copy").disabled = false;
+      $("#terminal-state").textContent = message.error;
+    }
   });
-  state.socket.addEventListener("close", () => { $("#terminal-state").textContent = "Disconnected"; });
-  state.terminal.onData(send);
+  state.socket.addEventListener("close", () => { setCopyMode(false); $("#terminal-state").textContent = "Disconnected"; });
+  state.terminal.onData(handleTerminalInput);
   setTimeout(fitTerminal, 50);
 }
 
@@ -243,10 +301,15 @@ $("#terminal-back").addEventListener("click", closeTerminal);
 $("#terminal-fit").addEventListener("click", fitTerminal);
 window.addEventListener("resize", () => setTimeout(fitTerminal, 80));
 document.querySelectorAll("button[data-key]").forEach((button) => button.addEventListener("click", () => {
-  send(JSON.parse(`"${button.dataset.key}"`));
+  handleTerminalInput(JSON.parse(`"${button.dataset.key}"`));
   if (button.closest("dialog")) closeTmuxControls();
 }));
 $("#tmux-copy").addEventListener("click", toggleCopyMode);
+$("#tmux-exit-copy").addEventListener("click", () => { requestCopyMode(false); closeTmuxControls(); });
+document.querySelectorAll("[data-copy-scroll]").forEach((button) => button.addEventListener("click", () => {
+  scrollCopyMode(button.dataset.copyScroll);
+  closeTmuxControls();
+}));
 $("#tmux-controls").addEventListener("click", () => { $("#tmux-dialog").showModal(); $("#tmux-key").focus(); });
 $("#composer-toggle").addEventListener("click", () => {
   const visible = $("#composer").classList.contains("hidden");
@@ -276,5 +339,16 @@ $("#composer").addEventListener("submit", (event) => {
   send(text);
   field.value = "";
 });
+
+$("#terminal").addEventListener("touchstart", captureScrollTouch, { passive: false, capture: true });
+$("#terminal").addEventListener("touchmove", captureScrollTouch, { passive: false, capture: true });
+$("#terminal").addEventListener("touchend", finishScrollTouch, { passive: false, capture: true });
+$("#terminal").addEventListener("touchcancel", () => { state.touchStartY = null; state.touchCurrentY = null; }, { capture: true });
+$("#terminal").addEventListener("wheel", (event) => {
+  if (!state.copyMode || event.deltaY === 0) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  scrollCopyMode(event.deltaY < 0 ? "line-up" : "line-down", Math.max(1, Math.min(20, Math.round(Math.abs(event.deltaY) / 20))));
+}, { passive: false, capture: true });
 
 init().catch((error) => { $("#identity").textContent = error.message; });

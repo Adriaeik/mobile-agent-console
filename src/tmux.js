@@ -23,6 +23,59 @@ export async function hasSessionId(id) {
   try { await runTmux(["has-session", "-t", id]); return true; } catch { return false; }
 }
 
+function validatePaneTarget(target) {
+  if (!/^\$[0-9]+:0\.0$/.test(target)) throw new InputError("Invalid tmux pane target.");
+  return target;
+}
+
+export function normalizeCopyScroll(action, count = 1) {
+  const commands = {
+    "line-up": "scroll-up",
+    "line-down": "scroll-down",
+    "page-up": "page-up",
+    "page-down": "page-down"
+  };
+  const command = commands[action];
+  if (!command) throw new InputError("Invalid copy-mode action.");
+  const repetitions = Math.max(1, Math.min(50, Math.trunc(Number(count) || 1)));
+  return { command, repetitions };
+}
+
+export async function getCopyModeState(target) {
+  validatePaneTarget(target);
+  const { stdout } = await runTmux([
+    "display-message", "-p", "-t", target,
+    "#{pane_in_mode}\t#{pane_mode}\t#{scroll_position}"
+  ]);
+  const [inMode, paneMode, scrollPosition] = stdout.trimEnd().split("\t");
+  return {
+    copyMode: paneMode === "copy-mode",
+    paneMode: paneMode || null,
+    inMode: inMode === "1",
+    scrollPosition: Number(scrollPosition) || 0
+  };
+}
+
+export async function setCopyMode(target, enabled) {
+  const current = await getCopyModeState(target);
+  if (enabled && !current.copyMode) {
+    if (current.inMode) await runTmux(["send-keys", "-X", "-t", target, "cancel"]);
+    await runTmux(["copy-mode", "-t", target]);
+  } else if (!enabled && current.inMode) {
+    await runTmux(["send-keys", "-X", "-t", target, "cancel"]);
+  }
+  return getCopyModeState(target);
+}
+
+export async function scrollCopyMode(target, action, count) {
+  const { command, repetitions } = normalizeCopyScroll(action, count);
+  let state = await getCopyModeState(target);
+  if (!state.copyMode) state = await setCopyMode(target, true);
+  if (!state.copyMode) throw new Error("tmux did not enter copy mode.");
+  await runTmux(["send-keys", "-X", "-N", String(repetitions), "-t", target, command]);
+  return getCopyModeState(target);
+}
+
 export async function listSessions() {
   let stdout;
   try {

@@ -36,9 +36,10 @@ The console can:
   custom `Ctrl-B` commands.
 
 The active-session bar stays compact: tap **Scroll** to enter tmux copy mode
-(`Ctrl-B [`), scroll with the arrow keys or Page Up/Down in the controls menu,
-then tap **Scroll** again to exit with `q`. The **⋯** menu also holds Ctrl-C,
-more tmux commands, and the optional text composer.
+(`Ctrl-B [`), then swipe directly on the terminal or use the arrow keys. Tap
+**Scroll** again to exit. The server confirms both transitions directly with
+tmux, while the **⋯** menu provides Page Up/Down, a forced exit, Ctrl-C, more
+tmux commands, and the optional text composer.
 
 > [!CAUTION]
 > This is interactive shell access as the Unix user running the service. Use
