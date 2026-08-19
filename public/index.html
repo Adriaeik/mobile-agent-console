@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
   <meta name="theme-color" content="#0b0d10">
   <title>Agent Console</title>
   <link rel="stylesheet" href="/vendor/xterm/xterm.css">
@@ -78,8 +78,12 @@
       <button data-key="\u001b">Esc</button>
       <button id="tmux-copy" aria-pressed="false" title="Enter tmux copy mode (Ctrl-B then [)">Scroll</button>
       <button data-key="\t">Tab</button>
-      <button data-key="\u001b[A">↑</button>
-      <button data-key="\u001b[B">↓</button>
+      <div class="arrow-group" role="group" aria-label="Arrow keys">
+        <button data-key="\u001b[D" data-repeat aria-label="Left (hold to repeat)">←</button>
+        <button data-key="\u001b[A" data-repeat aria-label="Up (hold to repeat)">↑</button>
+        <button data-key="\u001b[B" data-repeat aria-label="Down (hold to repeat)">↓</button>
+        <button data-key="\u001b[C" data-repeat aria-label="Right (hold to repeat)">→</button>
+      </div>
       <button data-key="\r">Enter</button>
     </div>
     <form id="composer" class="composer hidden">

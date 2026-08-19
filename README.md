@@ -31,15 +31,21 @@ The console can:
 - list, open, create, and stop named tmux sessions;
 - launch an agent in a selected project with a model and permission profile;
 - stream the real terminal UI through xterm.js and WebSockets;
-- type directly in the terminal or open an optional text composer; and
+- type directly in the terminal or open an optional text composer, with the key
+  row and composer lifting above the on-screen keyboard; and
 - scroll through tmux history, with quick copy-mode controls and common or
   custom `Ctrl-B` commands.
 
-The active-session bar stays compact: tap **Scroll** to enter tmux copy mode
-(`Ctrl-B [`), then swipe directly on the terminal or use the arrow keys. Tap
-**Scroll** again to exit. The server confirms both transitions directly with
-tmux, while the **⋯** menu provides Page Up/Down, a forced exit, Ctrl-C, more
-tmux commands, and the optional text composer.
+Scrolling works like it does on any phone: swipe up or down on the terminal and
+tmux scrolls with your finger, entering copy mode by itself on the first swipe
+back through history, and a flick keeps coasting. The **↑** and **↓** keys
+repeat while held, and neither gesture can trigger the browser's double-tap
+zoom, and the key row carries a full **← ↑ ↓ →** cluster so you can navigate and
+edit a line without the on-screen keyboard. Tap **Scroll** to enter or leave tmux
+copy mode (`Ctrl-B [`) explicitly;
+the server confirms both transitions directly with tmux. The **⋯** menu
+provides Page Up/Down, a forced exit, Ctrl-C, more tmux commands, and the
+optional text composer.
 
 > [!CAUTION]
 > This is interactive shell access as the Unix user running the service. Use
