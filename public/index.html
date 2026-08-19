@@ -70,18 +70,19 @@
     <header class="terminal-header">
       <button id="terminal-back" class="icon-button" aria-label="Back">‹</button>
       <div class="terminal-title"><strong id="terminal-name"></strong><span id="terminal-state">Connecting…</span></div>
+      <button id="tmux-controls" class="icon-button" aria-label="Terminal controls">⋯</button>
       <button id="terminal-fit" class="icon-button" aria-label="Fit terminal">⛶</button>
     </header>
     <div id="terminal" aria-label="Interactive terminal"></div>
     <div class="key-row" aria-label="Terminal control keys">
       <button data-key="\u001b">Esc</button>
-      <button data-key="\u0003">Ctrl-C</button>
+      <button id="tmux-copy" aria-pressed="false" title="Enter tmux copy mode (Ctrl-B then [)">Scroll</button>
       <button data-key="\t">Tab</button>
       <button data-key="\u001b[A">↑</button>
       <button data-key="\u001b[B">↓</button>
       <button data-key="\r">Enter</button>
     </div>
-    <form id="composer" class="composer">
+    <form id="composer" class="composer hidden">
       <textarea id="message" rows="1" placeholder="Send text to the terminal…"></textarea>
       <button class="send" type="submit" aria-label="Send">↑</button>
     </form>
@@ -92,6 +93,34 @@
     <p id="directory-current" class="path"></p>
     <div id="directory-list" class="directory-list"></div>
     <button id="directory-select" class="primary full">Use this folder</button>
+  </dialog>
+
+  <dialog id="tmux-dialog" aria-labelledby="tmux-title">
+    <header><h2 id="tmux-title">Terminal controls</h2><button id="tmux-close" class="icon-button" aria-label="Close">×</button></header>
+    <p class="control-heading">Terminal keys</p>
+    <div class="tmux-actions">
+      <button data-key="\u0003"><strong>Interrupt</strong><span>Ctrl-C</span></button>
+      <button data-key="\u001b[5~"><strong>Page up</strong><span>PgUp</span></button>
+      <button data-key="\u001b[6~"><strong>Page down</strong><span>PgDn</span></button>
+      <button id="composer-toggle" aria-controls="composer" aria-expanded="false"><strong>Text composer</strong><span>Show</span></button>
+    </div>
+    <p class="control-heading">tmux prefix commands</p>
+    <p class="dialog-copy">These send <kbd>Ctrl-B</kbd> followed by the shown key.</p>
+    <div class="tmux-actions">
+      <button data-tmux-key=":"><strong>Command prompt</strong><span>:</span></button>
+      <button data-tmux-key="w"><strong>Windows</strong><span>w</span></button>
+      <button data-tmux-key="p"><strong>Previous window</strong><span>p</span></button>
+      <button data-tmux-key="n"><strong>Next window</strong><span>n</span></button>
+      <button data-tmux-key="z"><strong>Zoom pane</strong><span>z</span></button>
+    </div>
+    <form id="tmux-custom-form" class="tmux-custom">
+      <label for="tmux-key">Any printable Ctrl-B key</label>
+      <div class="input-action">
+        <input id="tmux-key" maxlength="1" pattern="[ -~]" required autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="tmux-error">
+        <button class="primary" type="submit">Send</button>
+      </div>
+      <p id="tmux-error" class="error" role="alert"></p>
+    </form>
   </dialog>
 
   <template id="empty-template">

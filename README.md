@@ -30,8 +30,15 @@ The console can:
 
 - list, open, create, and stop named tmux sessions;
 - launch an agent in a selected project with a model and permission profile;
-- stream the real terminal UI through xterm.js and WebSockets; and
-- send text, Escape, Ctrl-C, Tab, arrows, Enter, and terminal resize events.
+- stream the real terminal UI through xterm.js and WebSockets;
+- type directly in the terminal or open an optional text composer; and
+- scroll through tmux history, with quick copy-mode controls and common or
+  custom `Ctrl-B` commands.
+
+The active-session bar stays compact: tap **Scroll** to enter tmux copy mode
+(`Ctrl-B [`), scroll with the arrow keys or Page Up/Down in the controls menu,
+then tap **Scroll** again to exit with `q`. The **⋯** menu also holds Ctrl-C,
+more tmux commands, and the optional text composer.
 
 > [!CAUTION]
 > This is interactive shell access as the Unix user running the service. Use
