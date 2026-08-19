@@ -16,7 +16,7 @@
     "start": "node src/server.js",
     "dev": "ALLOW_LOCAL_AUTH=true AUTH_MODE=local node --watch src/server.js",
     "test": "node --test",
-    "check": "node --check src/*.js && node --check public/app.js && node --check scripts/validate-config.mjs"
+    "check": "node --check src/*.js && node --check public/app.js && node --check public/scroll.js && node --check scripts/validate-config.mjs"
   },
   "engines": {
     "node": ">=22"
