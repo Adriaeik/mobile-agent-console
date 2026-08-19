@@ -1,5 +1,5 @@
 const $ = (selector) => document.querySelector(selector);
-const state = { config: null, sessions: [], socket: null, terminal: null, fit: null, active: null };
+const state = { config: null, sessions: [], socket: null, terminal: null, fit: null, active: null, copyMode: false };
 
 async function request(url, options = {}) {
   const response = await fetch(url, { headers: { "Content-Type": "application/json", ...(options.headers || {}) }, ...options });
@@ -102,6 +102,36 @@ function send(data) {
   if (state.socket?.readyState === WebSocket.OPEN) state.socket.send(JSON.stringify({ type: "input", data }));
 }
 
+function sendTmuxKey(key) {
+  send(`\u0002${key}`);
+  if (key === "[") setCopyMode(true);
+  state.terminal?.focus();
+}
+
+function setCopyMode(active) {
+  state.copyMode = active;
+  const button = $("#tmux-copy");
+  button.classList.toggle("active", active);
+  button.setAttribute("aria-pressed", String(active));
+  button.title = active ? "Exit tmux copy mode (q)" : "Enter tmux copy mode (Ctrl-B then [)";
+}
+
+function toggleCopyMode() {
+  if (state.copyMode) {
+    send("q");
+    setCopyMode(false);
+  } else {
+    sendTmuxKey("[");
+  }
+}
+
+function closeTmuxControls() {
+  $("#tmux-dialog").close();
+  $("#tmux-error").textContent = "";
+  $("#tmux-key").value = "";
+  state.terminal?.focus();
+}
+
 function fitTerminal() {
   if (!state.fit || !state.socket) return;
   state.fit.fit();
@@ -115,13 +145,25 @@ function closeTerminal() {
   state.terminal = null;
   state.fit = null;
   state.active = null;
+  setCopyMode(false);
+  setComposerVisible(false);
   showPage("dashboard");
   refreshSessions();
+}
+
+function setComposerVisible(visible) {
+  $("#composer").classList.toggle("hidden", !visible);
+  $("#composer-toggle").setAttribute("aria-expanded", String(visible));
+  $("#composer-toggle").querySelector("span").textContent = visible ? "Hide" : "Show";
+  setTimeout(fitTerminal, 0);
+  if (visible) $("#message").focus();
+  else state.terminal?.focus();
 }
 
 function openTerminal(id, name) {
   showPage("terminal-page");
   state.active = name;
+  setCopyMode(false);
   $("#terminal-name").textContent = name;
   $("#terminal-state").textContent = "Connecting…";
   $("#terminal").replaceChildren();
@@ -200,7 +242,32 @@ $("#directory-select").addEventListener("click", () => { $("#session-path").valu
 $("#terminal-back").addEventListener("click", closeTerminal);
 $("#terminal-fit").addEventListener("click", fitTerminal);
 window.addEventListener("resize", () => setTimeout(fitTerminal, 80));
-document.querySelectorAll(".key-row button").forEach((button) => button.addEventListener("click", () => send(JSON.parse(`"${button.dataset.key}"`))));
+document.querySelectorAll("button[data-key]").forEach((button) => button.addEventListener("click", () => {
+  send(JSON.parse(`"${button.dataset.key}"`));
+  if (button.closest("dialog")) closeTmuxControls();
+}));
+$("#tmux-copy").addEventListener("click", toggleCopyMode);
+$("#tmux-controls").addEventListener("click", () => { $("#tmux-dialog").showModal(); $("#tmux-key").focus(); });
+$("#composer-toggle").addEventListener("click", () => {
+  const visible = $("#composer").classList.contains("hidden");
+  closeTmuxControls();
+  setComposerVisible(visible);
+});
+$("#tmux-close").addEventListener("click", closeTmuxControls);
+document.querySelectorAll("[data-tmux-key]").forEach((button) => button.addEventListener("click", () => {
+  sendTmuxKey(button.dataset.tmuxKey);
+  closeTmuxControls();
+}));
+$("#tmux-custom-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const key = $("#tmux-key").value;
+  if (!/^[\x20-\x7e]$/.test(key)) {
+    $("#tmux-error").textContent = "Enter one printable key.";
+    return;
+  }
+  sendTmuxKey(key);
+  closeTmuxControls();
+});
 $("#composer").addEventListener("submit", (event) => {
   event.preventDefault();
   const field = $("#message");
