@@ -40,7 +40,10 @@ records, or tool payloads and are bounded by message and byte limits.
 The browser renders plain text with DOM `textContent`, polls only while the
 optional view is open, and preserves an older reading position. The original
 xterm/WebSocket connection remains alive so switching back restores the same
-interactive terminal.
+interactive terminal. Conversation input uses that same authenticated socket.
+The server writes message text and Enter to the PTY as separate ordered events;
+current agent TUIs can otherwise interpret a combined text-and-Enter write as a
+paste and leave it unsubmitted in their editor.
 
 ## Alternatives considered
 
@@ -72,6 +75,8 @@ behavior.
 
 - Conversation view is supported only for recognized active Codex and Claude
   sessions; raw shells and custom providers keep terminal mode.
+- Messages entered in Conversation view still go to the live TUI rather than
+  modifying provider transcript storage directly.
 - Provider persistence schemas may change. All parsing is isolated, allowlisted,
   schema-tested, and designed to become unavailable rather than return unknown
   record types.

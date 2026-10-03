@@ -151,6 +151,31 @@ async function main() {
         conversation.terminalHidden && conversation.keysHidden,
         `terminalHidden=${conversation.terminalHidden}, keysHidden=${conversation.keysHidden}`);
 
+      const responseMarker = `CHAT-INPUT-${provider.id.toUpperCase()}-${process.pid}`;
+      const chatPrompt = `Reply with exactly ${responseMarker}. Do not use tools.`;
+      const composerVisible = await page.locator("#composer").isVisible();
+      check(`${provider.label}: conversation view opens the message composer`, composerVisible,
+        `visible=${composerVisible}`);
+      await page.locator("#message").fill(chatPrompt);
+      await page.locator("#message").press("Enter");
+      check(`${provider.label}: Enter sends and clears the message`,
+        await page.locator("#message").inputValue() === "",
+        `remaining characters=${(await page.locator("#message").inputValue()).length}`);
+      await page.waitForFunction(
+        ({ prompt, marker }) => {
+          const messages = [...document.querySelectorAll(".conversation-message")];
+          const userArrived = messages.some((message) =>
+            message.classList.contains("user") && message.textContent.includes(prompt));
+          const replyArrived = messages.some((message) =>
+            message.classList.contains("assistant") && message.textContent.includes(marker));
+          return userArrived && replyArrived;
+        },
+        { prompt: chatPrompt, marker: responseMarker },
+        { timeout: 180000 }
+      );
+      check(`${provider.label}: sent message and reply appear in conversation view`, true,
+        `received ${responseMarker}`);
+
       await page.locator("#conversation").evaluate((element) => { element.scrollTop = 0; });
       await swipeConversation();
       await sleep(500);

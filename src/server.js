@@ -7,6 +7,7 @@ import pty from "node-pty";
 import { assertSafeConfiguration, authMiddleware, authorizeRequest, isLoopback, validateOrigin } from "./security.js";
 import { buildLaunch, loadProviders, publicProvider } from "./providers.js";
 import { loadConversationForPane } from "./conversation.js";
+import { submitTerminalInput } from "./terminal-input.js";
 import { createSession, ensureTmuxMouse, getCopyModeState, getSessionPane, hasSessionId, killSession, listDirectories, listSessions, scrollCopyMode, setCopyMode } from "./tmux.js";
 import { InputError, parseAllowedRoots, validateDirectory, validateOption, validatePrompt, validateSessionName } from "./validation.js";
 
@@ -133,6 +134,7 @@ server.on("upgrade", async (req, socket, head) => {
 sockets.on("connection", (ws, req) => {
   const target = `${req.sessionId}:0.0`;
   let controlQueue = Promise.resolve();
+  let submissionQueue = Promise.resolve();
   const sendJson = (message) => {
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(message));
   };
@@ -169,6 +171,10 @@ sockets.on("connection", (ws, req) => {
       const message = JSON.parse(raw.toString());
       if (message.type === "input" && typeof message.data === "string" && message.data.length <= 65536) {
         terminal.write(message.data);
+      } else if (message.type === "submit-input" && typeof message.data === "string" && message.data.length <= 8000) {
+        submissionQueue = submissionQueue
+          .then(() => submitTerminalInput(terminal, message.data))
+          .catch((error) => console.error("terminal submission failed:", error.message));
       } else if (message.type === "copy-mode" && typeof message.enabled === "boolean") {
         queueControl(() => setCopyMode(target, message.enabled));
       } else if (message.type === "copy-scroll") {

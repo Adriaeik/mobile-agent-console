@@ -6,6 +6,7 @@ import {
 } from "./scroll.js";
 import { conversationSignature, shouldFollowConversation } from "./conversation-view.js";
 import { request } from "./api-client.js";
+import { messagePayload, shouldSubmitComposerKey } from "./composer.js";
 
 const $ = (selector) => document.querySelector(selector);
 const state = {
@@ -15,7 +16,8 @@ const state = {
   scrollInFlight: false, scrollTimer: null, stateRefreshTimer: null,
   lastScrollPosition: null, lastTuiPageAt: -Infinity, lastTuiPageAction: null,
   viewportTimer: null, conversationMode: false, conversationTimer: null,
-  conversationLoading: false, conversationGeneration: 0, conversationSignature: null
+  conversationLoading: false, conversationGeneration: 0, conversationSignature: null,
+  composerBeforeConversation: false
 };
 
 // Held keys and flicks would otherwise emit one websocket message per step; the
@@ -91,6 +93,7 @@ async function refreshConversation() {
 }
 
 function setConversationMode(enabled, { focus = true } = {}) {
+  const wasEnabled = state.conversationMode;
   state.conversationMode = Boolean(enabled);
   state.conversationGeneration += 1;
   state.conversationLoading = false;
@@ -105,6 +108,8 @@ function setConversationMode(enabled, { focus = true } = {}) {
   $("#conversation-toggle").querySelector("span").textContent = state.conversationMode ? "Hide" : "Show";
 
   if (state.conversationMode) {
+    if (!wasEnabled) state.composerBeforeConversation = !$("#composer").classList.contains("hidden");
+    setComposerVisible(true, { focus: false });
     if (state.copyMode) requestCopyMode(false);
     $("#conversation-empty").textContent = "Loading conversation…";
     $("#conversation-empty").classList.remove("hidden");
@@ -113,6 +118,7 @@ function setConversationMode(enabled, { focus = true } = {}) {
     if (focus) $("#conversation").focus({ preventScroll: true });
     refreshConversation();
   } else {
+    if (wasEnabled) setComposerVisible(state.composerBeforeConversation, { focus: false });
     $("#conversation-messages").replaceChildren();
     $("#conversation-empty").classList.add("hidden");
     syncScrollUi();
@@ -545,13 +551,15 @@ function closeTerminal() {
   refreshSessions();
 }
 
-function setComposerVisible(visible) {
+function setComposerVisible(visible, { focus = true } = {}) {
   $("#composer").classList.toggle("hidden", !visible);
   $("#composer-toggle").setAttribute("aria-expanded", String(visible));
   $("#composer-toggle").querySelector("span").textContent = visible ? "Hide" : "Show";
   setTimeout(fitTerminal, 0);
-  if (visible) $("#message").focus();
-  else state.terminal?.focus();
+  if (focus) {
+    if (visible) $("#message").focus();
+    else state.terminal?.focus();
+  }
 }
 
 function openTerminal(id, name) {
@@ -761,10 +769,20 @@ $("#tmux-custom-form").addEventListener("submit", (event) => {
 $("#composer").addEventListener("submit", (event) => {
   event.preventDefault();
   const field = $("#message");
-  if (!field.value) return;
-  const text = field.value.includes("\n") ? `\u001b[200~${field.value}\u001b[201~\r` : `${field.value}\r`;
-  send(text);
+  const payload = messagePayload(field.value);
+  if (!payload) return;
+  if (!sendSocket(payload)) {
+    $("#terminal-state").textContent = "Disconnected · message not sent";
+    return;
+  }
   field.value = "";
+  field.focus({ preventScroll: true });
+  if (state.conversationMode) $("#terminal-state").textContent = "Message sent · waiting for agent";
+});
+$("#message").addEventListener("keydown", (event) => {
+  if (!shouldSubmitComposerKey(event)) return;
+  event.preventDefault();
+  $("#composer").requestSubmit();
 });
 
 $("#terminal").addEventListener("touchstart", startScrollTouch, { passive: false, capture: true });
