@@ -9,17 +9,19 @@ test("Enter sends a chat message while Shift+Enter inserts a new line", () => {
   assert.equal(shouldSubmitComposerKey({ key: "a", shiftKey: false, isComposing: false }), false);
 });
 
-test("single-line messages use the ordered submit protocol", () => {
-  assert.deepEqual(messagePayload("Please run the tests"), {
+test("single-line messages use an acknowledged ordered submit protocol", () => {
+  assert.deepEqual(messagePayload("Please run the tests", "submission-1"), {
     type: "submit-input",
-    data: "Please run the tests"
+    data: "Please run the tests",
+    id: "submission-1"
   });
 });
 
 test("multi-line messages are sent intact for server-side bracketed paste", () => {
-  assert.deepEqual(messagePayload("First line\nSecond line"), {
+  assert.deepEqual(messagePayload("First line\nSecond line", "submission-2"), {
     type: "submit-input",
-    data: "First line\nSecond line"
+    data: "First line\nSecond line",
+    id: "submission-2"
   });
 });
 

@@ -1,6 +1,9 @@
 // Browser-level reliability check. Runs on an isolated port and tmux socket.
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
+import { rm, stat } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { chromium } from "playwright";
 
 const execFileAsync = promisify(execFile);
@@ -8,6 +11,7 @@ const PORT = 3401;
 const SOCKET = "mac-reliability-e2e";
 const SESSION = "reliabilitytest";
 const REPO = new URL("..", import.meta.url).pathname;
+const TEST_DATA_HOME = path.join(os.tmpdir(), `mobile-agent-console-e2e-${process.pid}`);
 const results = [];
 
 const tmux = (...args) => execFileAsync("tmux", ["-L", SOCKET, ...args]);
@@ -31,6 +35,7 @@ async function startServer() {
       TMUX_SOCKET_NAME: SOCKET,
       NODE_ENV: "development",
       PUBLIC_ORIGIN: "",
+      XDG_DATA_HOME: TEST_DATA_HOME,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -186,11 +191,33 @@ async function main() {
     });
     check("jump to latest moves the conversation", true);
 
+    await page.evaluate(() => {
+      const transfer = new DataTransfer();
+      const png = new File([
+        new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]),
+      ], "clipboard.png", { type: "image/png" });
+      transfer.items.add(png);
+      document.querySelector("#message").dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData: transfer,
+      }));
+    });
+    await page.waitForFunction(() => document.querySelector("#message")?.value.startsWith("Attached image:"));
+    const imageReference = (await page.inputValue("#message")).replace("Attached image: ", "");
+    const imageInfo = await stat(imageReference);
+    check("clipboard image is uploaded privately and referenced in the message",
+      imageReference.startsWith(TEST_DATA_HOME) && imageInfo.size === 9 && (imageInfo.mode & 0o777) === 0o600,
+      imageReference);
+    await page.fill("#message", "");
+
     const optimisticText = "echo optimistic-e2e";
     await page.fill("#message", optimisticText);
     await page.press("#message", "Enter");
-    check("sent chat text renders immediately as pending",
-      await page.locator(".conversation-message.pending", { hasText: optimisticText }).count() === 1);
+    await page.waitForFunction((text) =>
+      [...document.querySelectorAll(".conversation-message.pending")].some((item) => item.textContent.includes(text)),
+    optimisticText);
+    check("acknowledged chat text renders as pending", true);
     conversation.messages.push({ id: "message-24", role: "user", text: optimisticText, timestamp: Date.now() });
     await page.waitForFunction((text) => {
       const messages = [...document.querySelectorAll(".conversation-message")].filter((item) => item.textContent.includes(text));
@@ -278,6 +305,7 @@ async function main() {
     await browser.close();
     await stopServer(server);
     await tmux("kill-server").catch(() => {});
+    await rm(TEST_DATA_HOME, { recursive: true, force: true });
   }
 
   const failed = results.filter(({ passed }) => !passed);

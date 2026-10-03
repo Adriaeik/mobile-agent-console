@@ -1,10 +1,21 @@
-const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+import { randomUUID } from "node:crypto";
+import { loadTmuxBuffer, runTmux } from "./tmux.js";
 
-export async function submitTerminalInput(terminal, value, pause = delay) {
-  const text = value.includes("\n") ? `\u001b[200~${value}\u001b[201~` : value;
-  terminal.write(text);
-  // Current agent TUIs can interpret text and Enter received in one PTY write as
-  // a paste, leaving the text in the editor instead of submitting it.
-  await pause(50);
-  terminal.write("\r");
+export async function submitTerminalInput(target, value, dependencies = {}) {
+  const loadBuffer = dependencies.loadBuffer || loadTmuxBuffer;
+  const tmux = dependencies.runTmux || runTmux;
+  const bufferName = dependencies.bufferName || `mobile-agent-console-${randomUUID()}`;
+  let pasted = false;
+  await loadBuffer(bufferName, value);
+  try {
+    // tmux waits until the paste has reached the pane before processing the
+    // explicit Enter key. This avoids TUIs interpreting a combined PTY write as
+    // pasted text followed by a literal newline.
+    await tmux(["paste-buffer", "-p", "-r", "-d", "-b", bufferName, "-t", target]);
+    pasted = true;
+    await tmux(["send-keys", "-t", target, "Enter"]);
+  } catch (error) {
+    if (!pasted) await tmux(["delete-buffer", "-b", bufferName]).catch(() => {});
+    throw error;
+  }
 }

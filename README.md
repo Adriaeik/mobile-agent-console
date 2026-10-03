@@ -35,6 +35,8 @@ The console can:
 - switch Codex and Claude sessions to a filtered conversation view that shows
   user and assistant text without tool runs, reasoning, command output, or diffs,
   and send new messages from the same view;
+- paste clipboard images into the message field, upload them privately to the
+  host, and pass their local file paths to the active agent;
 - type directly in the terminal or open an optional text composer, with the key
   row and composer lifting above the on-screen keyboard;
 - scroll inside fullscreen agent TUIs or through ordinary tmux history, with
@@ -59,9 +61,11 @@ and Claude Code sessions between views. Conversation view reads their local
 session history as the service user and returns only allowlisted message types;
 raw shells and unknown transcript formats stay in terminal mode. Its message
 field opens automatically: press **Enter** to send or **Shift+Enter** for a new
-line. Replies use a small safe Markdown subset, and the view includes timestamps,
-copy, search, and a jump-to-latest control. Sent text appears immediately and is
-reconciled when the provider records the matching turn.
+line. Paste (`Ctrl+V`) a screenshot or other PNG, JPEG, GIF, or WebP image into the field
+to attach its host path; uploads are limited to 10 MB. Replies use a small safe
+Markdown subset, and the view includes timestamps, copy, search, and a
+jump-to-latest control. A message appears in the conversation only after tmux
+confirms delivery, then reconciles when the provider records the matching turn.
 
 > [!CAUTION]
 > This is interactive shell access as the Unix user running the service. Use

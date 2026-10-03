@@ -14,6 +14,7 @@ import { API_PROTOCOL_VERSION, SERVER_INSTANCE_ID } from "./version.js";
 import { heartbeatClients, markAlive } from "./heartbeat.js";
 import { createBellDetector } from "./attention.js";
 import { closeRuntime } from "./shutdown.js";
+import { MAX_IMAGE_BYTES, saveImageUpload } from "./uploads.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
@@ -73,6 +74,24 @@ app.get("/api/sessions/:id/conversation", async (req, res, next) => {
     res.json(await loadConversationForPane(pane));
   } catch (error) { next(error); }
 });
+
+app.post(
+  "/api/sessions/:id/uploads",
+  express.raw({ type: () => true, limit: MAX_IMAGE_BYTES }),
+  async (req, res, next) => {
+    try {
+      const id = String(req.params.id);
+      if (!/^\$[0-9]+$/.test(id)) throw new InputError("Invalid tmux session id.");
+      if (!await hasSessionId(id)) throw new InputError("Session not found.", 404);
+      const upload = await saveImageUpload({
+        sessionId: id,
+        contentType: req.get("content-type"),
+        data: req.body,
+      });
+      res.status(201).json(upload);
+    } catch (error) { next(error); }
+  }
+);
 
 app.get("/api/directories", async (req, res, next) => {
   try { res.json(await listDirectories(String(req.query.path || ""), allowedRoots)); } catch (error) { next(error); }
@@ -188,10 +207,25 @@ sockets.on("connection", (ws, req) => {
       const message = JSON.parse(raw.toString());
       if (message.type === "input" && typeof message.data === "string" && message.data.length <= 65536) {
         terminal.write(message.data);
-      } else if (message.type === "submit-input" && typeof message.data === "string" && message.data.length <= 8000) {
-        submissionQueue = submissionQueue
-          .then(() => submitTerminalInput(terminal, message.data))
-          .catch((error) => console.error("terminal submission failed:", error.message));
+      } else if (message.type === "submit-input") {
+        const submissionId = typeof message.id === "string" && /^[A-Za-z0-9-]{1,64}$/.test(message.id)
+          ? message.id
+          : null;
+        const validData = typeof message.data === "string" && message.data.length > 0 &&
+          message.data.length <= 8000 && !message.data.includes("\0");
+        if (!submissionId || !validData) {
+          sendJson({ type: "submission-result", id: submissionId, ok: false, error: "Invalid message." });
+          return;
+        }
+        submissionQueue = submissionQueue.then(async () => {
+          try {
+            await submitTerminalInput(target, message.data);
+            sendJson({ type: "submission-result", id: submissionId, ok: true });
+          } catch (error) {
+            console.error("terminal submission failed:", error.message);
+            sendJson({ type: "submission-result", id: submissionId, ok: false, error: "The terminal did not accept the message." });
+          }
+        });
       } else if (message.type === "copy-mode" && typeof message.enabled === "boolean") {
         queueControl(() => setCopyMode(target, message.enabled));
       } else if (message.type === "copy-scroll") {

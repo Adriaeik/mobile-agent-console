@@ -6,12 +6,16 @@
 // A dedicated server port and tmux socket keep normal sessions untouched.
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
+import { rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { chromium } from "playwright";
 
 const execFileAsync = promisify(execFile);
 const SOCKET = `mac-tui-e2e-${process.pid}`;
 const PORT = 3401;
 const REPO = new URL("..", import.meta.url).pathname;
+const TEST_DATA_HOME = path.join(os.tmpdir(), `mobile-agent-console-tui-e2e-${process.pid}`);
 const results = [];
 
 const tmux = (...args) => execFileAsync("tmux", ["-L", SOCKET, ...args]);
@@ -51,6 +55,7 @@ async function main() {
       CLAUDE_CODE_NO_FLICKER: "1",
       NODE_ENV: "development",
       PUBLIC_ORIGIN: "",
+      XDG_DATA_HOME: TEST_DATA_HOME,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -103,10 +108,11 @@ async function main() {
       await touch("touchEnd", []);
     }
 
-    for (const provider of [
+    const providers = [
       { id: "codex", permission: "balanced", label: "Codex" },
       { id: "claude", permission: "plan", label: "Claude Code" },
-    ]) {
+    ].filter((provider) => !process.env.E2E_PROVIDER || provider.id === process.env.E2E_PROVIDER);
+    for (const provider of providers) {
       const sessionName = `tui-${provider.id}-${process.pid}`;
       const marker = "RIVER-STONE-ORBIT";
       const prompt = [
@@ -164,10 +170,14 @@ async function main() {
         `visible=${composerVisible}`);
       await page.locator("#message").fill(chatPrompt);
       await page.locator("#message").press("Enter");
+      await page.waitForFunction(() => document.querySelector("#message")?.value === "", null, { timeout: 10000 });
       check(`${provider.label}: Enter sends and clears the message`,
         await page.locator("#message").inputValue() === "",
         `remaining characters=${(await page.locator("#message").inputValue()).length}`);
-      check(`${provider.label}: sent message appears immediately as pending`,
+      await page.waitForFunction((text) =>
+        [...document.querySelectorAll(".conversation-message.pending")].some((message) => message.textContent.includes(text)),
+      chatPrompt, { timeout: 10000 });
+      check(`${provider.label}: acknowledged message appears as pending`,
         await page.locator(".conversation-message.pending", { hasText: chatPrompt }).count() === 1,
         `pending=${await page.locator(".conversation-message.pending").count()}`);
       await page.waitForFunction(
@@ -196,6 +206,38 @@ async function main() {
         await page.locator("#conversation-search-count").innerText() === "1/2",
         await page.locator("#conversation-search-count").innerText());
       await page.locator("#conversation-search").fill("");
+
+      if (provider.id === "codex") {
+        await page.evaluate(async () => {
+          const image = await fetch("/icons/icon-192.png").then((response) => response.blob());
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([image], "console-icon.png", { type: "image/png" }));
+          document.querySelector("#message").dispatchEvent(new ClipboardEvent("paste", {
+            bubbles: true,
+            cancelable: true,
+            clipboardData: transfer,
+          }));
+        });
+        await page.waitForFunction(() => document.querySelector("#message")?.value.startsWith("Attached image:"));
+        const reference = await page.locator("#message").inputValue();
+        const imageMarker = `IMAGE-ATTACHMENT-OK-${process.pid}`;
+        const imagePrompt = [
+          "Inspect the attached image file.",
+          `If it shows a green terminal prompt and a gray cursor, reply exactly ${imageMarker}; otherwise reply WRONG.`,
+          reference,
+        ].join("\n\n");
+        await page.locator("#message").fill(imagePrompt);
+        await page.locator("#message").press("Enter");
+        await page.waitForFunction(() => document.querySelector("#message")?.value === "", null, { timeout: 10000 });
+        await page.waitForFunction(
+          (marker) => [...document.querySelectorAll(".conversation-message.assistant")]
+            .some((message) => message.textContent.includes(marker)),
+          imageMarker,
+          { timeout: 180000 }
+        );
+        check("Codex: pasted image is uploaded, opened, and understood by the agent", true,
+          `received ${imageMarker}`);
+      }
 
       await page.locator("#conversation").evaluate((element) => { element.scrollTop = 0; });
       await swipeConversation();
@@ -283,6 +325,7 @@ async function main() {
     await browser?.close().catch(() => {});
     server.kill();
     await tmux("kill-server").catch(() => {});
+    await rm(TEST_DATA_HOME, { recursive: true, force: true });
   }
 
   const failed = results.filter((result) => !result.passed);

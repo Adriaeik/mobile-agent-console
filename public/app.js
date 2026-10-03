@@ -5,8 +5,9 @@ import {
   wheelDeltaToPixels,
 } from "./scroll.js";
 import { conversationSignature, shouldFollowConversation } from "./conversation-view.js";
-import { request } from "./api-client.js";
+import { readApiResponse, request } from "./api-client.js";
 import { messagePayload, shouldSubmitComposerKey } from "./composer.js";
+import { appendImageReferences, imageFilesFromClipboard } from "./attachments.js";
 import { assertCompatibleConfig, deploymentChanged, IncompatibleServerError } from "./version.js";
 import { reconnectDelay, shouldReconnect } from "./reconnect.js";
 import { clearDraft, loadDraft, saveDraft } from "./drafts.js";
@@ -43,6 +44,7 @@ const state = {
   manualClose: false, agentStatus: null, notificationEnabled: notificationsEnabled(),
   serviceWorkerRegistration: null, conversationPayload: null, pendingMessages: [],
   conversationMessages: [], searchMatches: [], searchCursor: -1,
+  submission: null,
   sessionQuery: "", sessionProvider: loadProviderFilter(), pins: loadPins()
 };
 
@@ -728,6 +730,8 @@ function closeTerminal() {
   state.conversationPayload = null;
   state.pendingMessages = [];
   state.conversationMessages = [];
+  state.submission = null;
+  setComposerBusy(false);
   socket?.close();
   state.terminal?.dispose();
   state.terminal = null;
@@ -752,6 +756,37 @@ function setComposerVisible(visible, { focus = true } = {}) {
   }
 }
 
+function setComposerBusy(busy) {
+  $("#message").disabled = busy;
+  $("#composer .send").disabled = busy;
+}
+
+function settleSubmission(message) {
+  const submission = state.submission;
+  if (!submission || message.id !== submission.id) return;
+  state.submission = null;
+  setComposerBusy(false);
+  const field = $("#message");
+  if (!message.ok) {
+    $("#terminal-state").textContent = message.error || "Message not sent";
+    field.focus({ preventScroll: true });
+    return;
+  }
+  if (state.conversationMode) {
+    state.pendingMessages = addPendingMessage(state.pendingMessages, submission.text);
+    setAgentStatus(deriveAgentStatus({ available: true, messages: [{ role: "user" }] }));
+    if (state.conversationPayload?.available) renderConversation(state.conversationPayload);
+  }
+  clearDraft(sessionStorage, state.active.id);
+  field.value = "";
+  field.focus({ preventScroll: true });
+  if (state.conversationMode) {
+    $("#terminal-state").textContent = submission.queued
+      ? "Queued in agent TUI"
+      : "Submitted to agent TUI";
+  }
+}
+
 function handleSocketMessage(data) {
   const message = JSON.parse(data);
   if (message.type === "output") state.terminal.write(message.data, () => {
@@ -764,6 +799,7 @@ function handleSocketMessage(data) {
     $("#terminal-state").textContent = `Terminal exited (${message.exitCode})`;
   }
   if (message.type === "attention") setAgentStatus(attentionStatus());
+  if (message.type === "submission-result") settleSubmission(message);
   if (message.type === "tmux-state") {
     // Momentum that no longer moves the pane has hit the top of the history.
     state.mouseTracking = message.mouseTracking === true;
@@ -826,6 +862,13 @@ function connectTerminalSocket() {
   socket.addEventListener("close", () => {
     if (state.socket !== socket) return;
     state.socket = null;
+    if (state.submission) {
+      settleSubmission({
+        id: state.submission.id,
+        ok: false,
+        error: "Connection lost · check the terminal before retrying",
+      });
+    }
     stopRepeat();
     setCopyMode(false);
     if (!state.manualClose) scheduleReconnect();
@@ -849,6 +892,8 @@ function openTerminal(id, name) {
   state.conversationPayload = null;
   state.pendingMessages = [];
   state.conversationMessages = [];
+  state.submission = null;
+  setComposerBusy(false);
   state.searchCursor = -1;
   $("#conversation-search").value = "";
   setConversationMode(false, { focus: false });
@@ -1055,22 +1100,22 @@ $("#tmux-custom-form").addEventListener("submit", (event) => {
 });
 $("#composer").addEventListener("submit", (event) => {
   event.preventDefault();
+  if (state.submission) return;
   const field = $("#message");
-  const payload = messagePayload(field.value);
+  const id = crypto.randomUUID();
+  const payload = messagePayload(field.value, id);
   if (!payload) return;
   if (!sendSocket(payload)) {
     $("#terminal-state").textContent = "Disconnected · message not sent";
     return;
   }
-  if (state.conversationMode) {
-    state.pendingMessages = addPendingMessage(state.pendingMessages, field.value);
-    setAgentStatus(deriveAgentStatus({ available: true, messages: [{ role: "user" }] }));
-    if (state.conversationPayload?.available) renderConversation(state.conversationPayload);
-  }
-  clearDraft(sessionStorage, state.active.id);
-  field.value = "";
-  field.focus({ preventScroll: true });
-  if (state.conversationMode) $("#terminal-state").textContent = "Message sent · waiting for agent";
+  state.submission = {
+    id,
+    text: field.value,
+    queued: state.agentStatus?.id === "working",
+  };
+  setComposerBusy(true);
+  if (state.conversationMode) $("#terminal-state").textContent = "Submitting to agent TUI…";
 });
 $("#message").addEventListener("input", (event) => {
   if (state.active) saveDraft(sessionStorage, state.active.id, event.currentTarget.value);
@@ -1079,6 +1124,36 @@ $("#message").addEventListener("keydown", (event) => {
   if (!shouldSubmitComposerKey(event)) return;
   event.preventDefault();
   $("#composer").requestSubmit();
+});
+$("#message").addEventListener("paste", async (event) => {
+  const files = imageFilesFromClipboard(event.clipboardData);
+  if (!files.length) return;
+  event.preventDefault();
+  if (!state.active || state.submission) return;
+  const field = event.currentTarget;
+  setComposerBusy(true);
+  $("#terminal-state").textContent = `Uploading ${files.length === 1 ? "image" : `${files.length} images`}…`;
+  try {
+    const uploads = [];
+    for (const file of files) {
+      const response = await fetch(`/api/sessions/${encodeURIComponent(state.active.id)}/uploads`, {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      uploads.push(await readApiResponse(response));
+    }
+    const next = appendImageReferences(field.value, uploads);
+    if (next.length > field.maxLength) throw new Error("The message is too long to add the image reference.");
+    field.value = next;
+    saveDraft(sessionStorage, state.active.id, next);
+    $("#terminal-state").textContent = `${uploads.length === 1 ? "Image" : "Images"} attached · press Enter to send`;
+  } catch (error) {
+    $("#terminal-state").textContent = `Upload failed · ${error.message}`;
+  } finally {
+    setComposerBusy(false);
+    field.focus({ preventScroll: true });
+  }
 });
 
 $("#conversation-search").addEventListener("input", () => {
