@@ -7,6 +7,14 @@ core constraint: it remains a small Tailscale-protected wrapper around the live
 tmux session. Work lands as independently testable vertical slices and is
 merged only after unit, browser, and production smoke checks pass.
 
+## Status
+
+Complete. Tasks 1–13 shipped through PRs #18–#21. Final verification on
+2026-10-03 passed 94 repository tests, 36 shell/tmux browser checks, 29
+reliability/dashboard browser checks, and 47 checks against authenticated Codex
+and Claude Code sessions. The production service is healthy on `main` through
+its authenticated Tailscale origin.
+
 ## Architecture decisions
 
 - Keep the browser dependency-free. Render a conservative Markdown subset with

@@ -175,7 +175,7 @@
 
 ## Final checkpoint
 
-- [ ] Tasks 1–13 complete.
-- [ ] Full tests, check, audit, shell E2E, and real-agent E2E pass.
-- [ ] Documentation and security notes are current.
-- [ ] All PRs merged and production runs clean `main`.
+- [x] Tasks 1–13 complete.
+- [x] Full tests, check, audit, shell E2E, and real-agent E2E pass.
+- [x] Documentation and security notes are current.
+- [x] All feature PRs merged and production runs clean `main`.
