@@ -63,6 +63,8 @@ textarea { resize: vertical; }
 .terminal-page { touch-action: manipulation; position: fixed; inset: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; background: #050607; }
 .terminal-header { height: calc(58px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 10px 0; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #1d2228; }
 .terminal-header .icon-button { width: 40px; height: 40px; border-radius: 12px; }
+.view-toggle { min-width: 54px; height: 36px; padding: 0 10px; border: 1px solid #3c4650; border-radius: 999px; background: #15191e; color: var(--text); font-size: .72rem; font-weight: 750; }
+.view-toggle[aria-pressed="true"] { border-color: #557a2b; background: var(--accent-dark); color: var(--accent); }
 .terminal-title { min-width: 0; flex: 1; display: grid; text-align: center; }
 .terminal-title strong { overflow: hidden; text-overflow: ellipsis; }
 .terminal-title span { color: var(--muted); font-size: .68rem; }

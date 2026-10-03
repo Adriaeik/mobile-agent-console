@@ -48,11 +48,12 @@ exits tmux copy mode. The key row also provides **← ↑ ↓ →**, while **⋯
 Page Up/Down, Ctrl-C, Codex's **Shift+←** queued-question shortcut, tmux commands,
 and the optional text composer.
 
-**Conversation view** is available from **⋯** for active Codex and Claude Code
-sessions. It reads their local session history as the service user and returns
-only allowlisted message types; raw shells and unknown transcript formats stay
-in terminal mode. Its message field opens automatically: press **Enter** to send
-or **Shift+Enter** for a new line.
+Use the **Chat / Terminal** button in the session header to switch active Codex
+and Claude Code sessions between views. Conversation view reads their local
+session history as the service user and returns only allowlisted message types;
+raw shells and unknown transcript formats stay in terminal mode. Its message
+field opens automatically: press **Enter** to send or **Shift+Enter** for a new
+line.
 
 > [!CAUTION]
 > This is interactive shell access as the Unix user running the service. Use
