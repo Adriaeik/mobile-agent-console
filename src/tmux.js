@@ -14,6 +14,21 @@ export async function runTmux(args, options = {}) {
   return execFileAsync("tmux", tmuxArgs(args), { maxBuffer: 2 * 1024 * 1024, ...options });
 }
 
+export function shouldEnableTmuxMouse(value = process.env.TMUX_MOUSE) {
+  return !["0", "false", "off", "no"].includes(String(value || "").trim().toLowerCase());
+}
+
+export function tmuxMouseArgs(target) {
+  if (!/^\$[0-9]+$/.test(target)) validateSessionName(target);
+  return ["set-option", "-t", target, "mouse", "on"];
+}
+
+export async function ensureTmuxMouse(target) {
+  if (!shouldEnableTmuxMouse()) return false;
+  await runTmux(tmuxMouseArgs(target));
+  return true;
+}
+
 export async function hasSession(name) {
   try { await runTmux(["has-session", "-t", `=${name}`]); return true; } catch { return false; }
 }
@@ -106,6 +121,7 @@ export async function createSession({ name, cwd, launch }) {
   const command = `exec ${[launch.command, ...launch.args].map(shellQuote).join(" ")}`;
   await runTmux(["new-session", "-d", "-s", name, "-c", cwd, "-x", "120", "-y", "38", command]);
   try {
+    await ensureTmuxMouse(name);
     await runTmux(["set-window-option", "-t", `${name}:0`, "remain-on-exit", "on"]);
     await runTmux(["set-window-option", "-t", `${name}:0`, "history-limit", "50000"]);
   } catch (error) {

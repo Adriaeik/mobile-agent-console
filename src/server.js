@@ -6,7 +6,7 @@ import { WebSocketServer } from "ws";
 import pty from "node-pty";
 import { assertSafeConfiguration, authMiddleware, authorizeRequest, isLoopback, validateOrigin } from "./security.js";
 import { buildLaunch, loadProviders, publicProvider } from "./providers.js";
-import { createSession, getCopyModeState, hasSessionId, killSession, listDirectories, listSessions, scrollCopyMode, setCopyMode } from "./tmux.js";
+import { createSession, ensureTmuxMouse, getCopyModeState, hasSessionId, killSession, listDirectories, listSessions, scrollCopyMode, setCopyMode } from "./tmux.js";
 import { InputError, parseAllowedRoots, validateDirectory, validateOption, validatePrompt, validateSessionName } from "./validation.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -109,6 +109,7 @@ server.on("upgrade", async (req, socket, head) => {
     const match = url.pathname.match(/^\/ws\/sessions\/(%24|\$)([0-9]+)$/i);
     const sessionId = match ? `$${match[2]}` : "";
     if (!sessionId || !await hasSessionId(sessionId)) throw new InputError("Session not found.", 404);
+    await ensureTmuxMouse(sessionId);
     req.sessionId = sessionId;
     sockets.handleUpgrade(req, socket, head, (ws) => sockets.emit("connection", ws, req));
   } catch (error) {
@@ -160,6 +161,8 @@ sockets.on("connection", (ws, req) => {
         queueControl(() => setCopyMode(target, message.enabled));
       } else if (message.type === "copy-scroll") {
         queueControl(() => scrollCopyMode(target, message.action, message.count));
+      } else if (message.type === "tmux-state") {
+        queueControl(() => getCopyModeState(target));
       } else if (message.type === "resize") {
         const cols = Math.max(20, Math.min(300, Number(message.cols) || 100));
         const rows = Math.max(8, Math.min(120, Number(message.rows) || 32));

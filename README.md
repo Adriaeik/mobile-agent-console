@@ -33,19 +33,16 @@ The console can:
 - stream the real terminal UI through xterm.js and WebSockets;
 - type directly in the terminal or open an optional text composer, with the key
   row and composer lifting above the on-screen keyboard; and
-- scroll through tmux history, with quick copy-mode controls and common or
-  custom `Ctrl-B` commands.
+- scroll inside fullscreen agent TUIs or through ordinary tmux history, with
+  quick controls and common or custom `Ctrl-B` commands.
 
-Scrolling works like it does on any phone: swipe up or down on the terminal and
-tmux scrolls with your finger, entering copy mode by itself on the first swipe
-back through history, and a flick keeps coasting. The **↑** and **↓** keys
-repeat while held, and neither gesture can trigger the browser's double-tap
-zoom, and the key row carries a full **← ↑ ↓ →** cluster so you can navigate and
-edit a line without the on-screen keyboard. Tap **Scroll** to enter or leave tmux
-copy mode (`Ctrl-B [`) explicitly;
-the server confirms both transitions directly with tmux. The **⋯** menu
-provides Page Up/Down, a forced exit, Ctrl-C, more tmux commands, and the
-optional text composer.
+Scrolling follows whichever layer owns the history. Codex, Claude Code, and
+other fullscreen TUIs receive swipe and wheel events directly; a normal shell
+falls back to tmux copy mode. A flick keeps coasting, and the server refreshes
+tmux state so copy mode can always be exited cleanly. **Scroll** sends Page Up
+to the active history layer, or exits tmux copy mode when it is active. The key
+row also provides **← ↑ ↓ →**, while **⋯** contains Page Up/Down, Ctrl-C, tmux
+commands, and the optional text composer.
 
 > [!CAUTION]
 > This is interactive shell access as the Unix user running the service. Use
@@ -103,7 +100,8 @@ sudo loginctl enable-linger "$USER"
 
 Configuration stays in `~/.config/mobile-agent-console/env`, outside Git. See
 [.env.example](.env.example) for optional ports, tmux socket isolation, and
-custom provider configuration. A provider example lives in
+custom provider configuration. `TMUX_MOUSE=on` is the default because tmux must
+forward mouse-wheel events to fullscreen TUIs. A provider example lives in
 [config/providers.example.json](config/providers.example.json).
 
 ## Security defaults
@@ -128,6 +126,13 @@ npm run dev
 npm test
 npm run check
 npm audit --omit=dev
+```
+
+The browser harnesses use an isolated port and tmux socket:
+
+```bash
+node scripts/e2e-scroll.mjs       # shell and tmux-history fallback
+node scripts/e2e-tui-scroll.mjs   # authenticated local Codex and Claude TUIs
 ```
 
 Useful production checks:

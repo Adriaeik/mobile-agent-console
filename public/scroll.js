@@ -51,3 +51,18 @@ export function wheelDeltaToPixels(deltaY, deltaMode, lineHeight) {
   if (deltaMode === 2) return -delta * height * 10;
   return -delta;
 }
+
+// Fullscreen terminal applications keep their own history. When xterm reports
+// that the application requested mouse tracking, wheel events must reach that
+// application instead of opening tmux copy mode.
+export function scrollTargetForMouseMode(mode) {
+  return mode && mode !== "none" ? "terminal" : "tmux";
+}
+
+export function wheelDeltasForStep(step, lineHeight) {
+  if (!step || !["line-up", "line-down"].includes(step.action)) return [];
+  const count = Math.max(0, Math.min(MAX_LINES_PER_MESSAGE, Math.trunc(Number(step.count) || 0)));
+  const height = Number(lineHeight) > 0 ? Number(lineHeight) : 16;
+  const delta = step.action === "line-up" ? -height : height;
+  return Array.from({ length: count }, () => delta);
+}
