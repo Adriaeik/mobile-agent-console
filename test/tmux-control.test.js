@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeCopyScroll } from "../src/tmux.js";
+import { normalizeCopyScroll, shouldEnableTmuxMouse, tmuxMouseArgs } from "../src/tmux.js";
 
 test("allows only known tmux copy-mode scroll actions", () => {
   assert.deepEqual(normalizeCopyScroll("line-up", 7), { command: "scroll-up", repetitions: 7 });
@@ -12,4 +12,18 @@ test("bounds copy-mode scroll repetitions", () => {
   assert.equal(normalizeCopyScroll("line-down", 0).repetitions, 1);
   assert.equal(normalizeCopyScroll("line-down", 500).repetitions, 50);
   assert.equal(normalizeCopyScroll("line-down", "8.9").repetitions, 8);
+});
+
+test("enables tmux mouse forwarding unless explicitly disabled", () => {
+  assert.equal(shouldEnableTmuxMouse(undefined), true);
+  assert.equal(shouldEnableTmuxMouse("on"), true);
+  assert.equal(shouldEnableTmuxMouse("off"), false);
+  assert.equal(shouldEnableTmuxMouse("false"), false);
+  assert.equal(shouldEnableTmuxMouse("0"), false);
+});
+
+test("enables mouse only for the session being opened", () => {
+  assert.deepEqual(tmuxMouseArgs("$12"), ["set-option", "-t", "$12", "mouse", "on"]);
+  assert.deepEqual(tmuxMouseArgs("agent-one"), ["set-option", "-t", "agent-one", "mouse", "on"]);
+  assert.throws(() => tmuxMouseArgs("bad:target"));
 });
