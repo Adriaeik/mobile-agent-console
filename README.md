@@ -58,7 +58,9 @@ and Claude Code sessions between views. Conversation view reads their local
 session history as the service user and returns only allowlisted message types;
 raw shells and unknown transcript formats stay in terminal mode. Its message
 field opens automatically: press **Enter** to send or **Shift+Enter** for a new
-line.
+line. Replies use a small safe Markdown subset, and the view includes timestamps,
+copy, search, and a jump-to-latest control. Sent text appears immediately and is
+reconciled when the provider records the matching turn.
 
 > [!CAUTION]
 > This is interactive shell access as the Unix user running the service. Use

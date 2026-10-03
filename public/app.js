@@ -19,6 +19,8 @@ import {
   requestNotificationOptIn,
   showAgentNotification,
 } from "./notifications.js";
+import { renderSafeMarkdown } from "./safe-markdown.js";
+import { addPendingMessage, mergePendingMessages, searchMessages } from "./conversation-state.js";
 
 const $ = (selector) => document.querySelector(selector);
 const state = {
@@ -31,7 +33,8 @@ const state = {
   conversationLoading: false, conversationGeneration: 0, conversationSignature: null,
   composerBeforeConversation: false, reconnectTimer: null, reconnectAttempt: 0,
   manualClose: false, agentStatus: null, notificationEnabled: notificationsEnabled(),
-  serviceWorkerRegistration: null
+  serviceWorkerRegistration: null, conversationPayload: null, pendingMessages: [],
+  conversationMessages: [], searchMatches: [], searchCursor: -1
 };
 
 // Held keys and flicks would otherwise emit one websocket message per step; the
@@ -92,10 +95,58 @@ async function checkDeployment() {
   }
 }
 
+function formatMessageTime(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  return {
+    dateTime: date.toISOString(),
+    label: new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(date),
+    title: new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "medium" }).format(date),
+  };
+}
+
+async function copyMessage(text, button) {
+  try {
+    await navigator.clipboard.writeText(text);
+    button.textContent = "Copied";
+    setTimeout(() => { button.textContent = "Copy"; }, 1200);
+  } catch {
+    button.textContent = "Copy failed";
+  }
+}
+
+function applyConversationSearch({ move = false } = {}) {
+  const query = $("#conversation-search").value;
+  const matches = searchMessages(state.conversationMessages, query);
+  state.searchMatches = matches;
+  const articles = [...document.querySelectorAll(".conversation-message")];
+  articles.forEach((article, index) => article.classList.toggle("search-match", matches.includes(index)));
+  if (!query.trim()) {
+    state.searchCursor = -1;
+    $("#conversation-search-count").textContent = "";
+    return;
+  }
+  if (move && matches.length) state.searchCursor = (state.searchCursor + 1) % matches.length;
+  else if (!matches.includes(matches[state.searchCursor])) state.searchCursor = matches.length ? 0 : -1;
+  $("#conversation-search-count").textContent = matches.length
+    ? `${Math.max(0, state.searchCursor) + 1}/${matches.length}`
+    : "No matches";
+  if (move && state.searchCursor >= 0) {
+    articles[matches[state.searchCursor]]?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+}
+
+function syncLatestButton() {
+  const root = $("#conversation");
+  $("#conversation-latest").classList.toggle("hidden", shouldFollowConversation(root));
+}
+
 function renderConversation(payload) {
   const root = $("#conversation");
   const messagesRoot = $("#conversation-messages");
   const empty = $("#conversation-empty");
+  state.conversationPayload = payload;
   if (!payload.available) {
     messagesRoot.replaceChildren();
     empty.textContent = payload.reason || "Conversation view is unavailable for this session.";
@@ -105,7 +156,14 @@ function renderConversation(payload) {
     return;
   }
 
-  const messages = Array.isArray(payload.messages) ? payload.messages : [];
+  const reconciled = mergePendingMessages(
+    Array.isArray(payload.messages) ? payload.messages : [],
+    state.pendingMessages,
+    { reconcile: true },
+  );
+  state.pendingMessages = reconciled.pending;
+  const messages = reconciled.messages;
+  state.conversationMessages = messages;
   const signature = conversationSignature(messages);
   $("#terminal-state").textContent = `Conversation · ${payload.provider === "claude" ? "Claude" : "Codex"}`;
   empty.textContent = "No user or assistant text has been recorded yet.";
@@ -113,21 +171,45 @@ function renderConversation(payload) {
   if (signature === state.conversationSignature) return;
 
   const follow = !messagesRoot.childElementCount || shouldFollowConversation(root);
+  const previousScrollTop = root.scrollTop;
   const fragment = document.createDocumentFragment();
-  for (const message of messages) {
+  for (const [index, message] of messages.entries()) {
     if (!["user", "assistant"].includes(message.role) || typeof message.text !== "string") continue;
     const article = document.createElement("article");
     article.className = `conversation-message ${message.role}`;
+    article.classList.toggle("pending", message.pending === true);
+    article.dataset.messageIndex = String(index);
+    const header = document.createElement("header");
     const label = document.createElement("span");
-    label.textContent = message.role === "user" ? "You" : payload.provider === "claude" ? "Claude" : "Codex";
-    const text = document.createElement("p");
-    text.textContent = message.text;
-    article.append(label, text);
+    label.textContent = message.pending ? "You · Sending…" : message.role === "user" ? "You" : payload.provider === "claude" ? "Claude" : "Codex";
+    header.append(label);
+    const time = formatMessageTime(message.timestamp);
+    if (time) {
+      const element = document.createElement("time");
+      element.dateTime = time.dateTime;
+      element.title = time.title;
+      element.textContent = time.label;
+      header.append(element);
+    }
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "message-copy";
+    copy.textContent = "Copy";
+    copy.setAttribute("aria-label", `Copy ${message.role} message`);
+    copy.addEventListener("click", () => copyMessage(message.text, copy));
+    header.append(copy);
+    const text = document.createElement("div");
+    text.className = "message-content";
+    renderSafeMarkdown(text, message.text);
+    article.append(header, text);
     fragment.append(article);
   }
   messagesRoot.replaceChildren(fragment);
   state.conversationSignature = signature;
   if (follow) root.scrollTop = root.scrollHeight;
+  else root.scrollTop = previousScrollTop;
+  applyConversationSearch();
+  syncLatestButton();
 }
 
 async function refreshConversation() {
@@ -609,6 +691,9 @@ function closeTerminal() {
   state.socket = null;
   state.active = null;
   state.agentStatus = null;
+  state.conversationPayload = null;
+  state.pendingMessages = [];
+  state.conversationMessages = [];
   socket?.close();
   state.terminal?.dispose();
   state.terminal = null;
@@ -727,6 +812,11 @@ function openTerminal(id, name) {
   state.active = { id, name };
   state.manualClose = false;
   state.reconnectAttempt = 0;
+  state.conversationPayload = null;
+  state.pendingMessages = [];
+  state.conversationMessages = [];
+  state.searchCursor = -1;
+  $("#conversation-search").value = "";
   setConversationMode(false, { focus: false });
   setCopyMode(false);
   $("#terminal-name").textContent = name;
@@ -928,6 +1018,11 @@ $("#composer").addEventListener("submit", (event) => {
     $("#terminal-state").textContent = "Disconnected · message not sent";
     return;
   }
+  if (state.conversationMode) {
+    state.pendingMessages = addPendingMessage(state.pendingMessages, field.value);
+    setAgentStatus(deriveAgentStatus({ available: true, messages: [{ role: "user" }] }));
+    if (state.conversationPayload?.available) renderConversation(state.conversationPayload);
+  }
   clearDraft(sessionStorage, state.active.id);
   field.value = "";
   field.focus({ preventScroll: true });
@@ -940,6 +1035,21 @@ $("#message").addEventListener("keydown", (event) => {
   if (!shouldSubmitComposerKey(event)) return;
   event.preventDefault();
   $("#composer").requestSubmit();
+});
+
+$("#conversation-search").addEventListener("input", () => {
+  state.searchCursor = -1;
+  applyConversationSearch();
+});
+$("#conversation-search").addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  applyConversationSearch({ move: true });
+});
+$("#conversation").addEventListener("scroll", syncLatestButton, { passive: true });
+$("#conversation-latest").addEventListener("click", () => {
+  const root = $("#conversation");
+  root.scrollTo({ top: root.scrollHeight, behavior: "smooth" });
 });
 
 $("#terminal").addEventListener("touchstart", startScrollTouch, { passive: false, capture: true });

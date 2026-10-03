@@ -94,13 +94,13 @@
 ## Checkpoint: status PR
 
 - [x] Tasks 5–7 pass all tests and real-provider verification.
-- [ ] PR merged, branch removed, production healthy.
+- [x] PR merged, branch removed, production healthy.
 
 ## Task 8: Safe Markdown
 
 **Acceptance criteria:**
-- [ ] Paragraphs, headings, lists, inline code, and fenced code render readably.
-- [ ] HTML/script-like input remains inert text.
+- [x] Paragraphs, headings, lists, inline code, and fenced code render readably.
+- [x] HTML/script-like input remains inert text.
 
 **Verification:** parser/renderer tests with hostile fixtures.
 
@@ -111,8 +111,8 @@
 ## Task 9: Conversation navigation
 
 **Acceptance criteria:**
-- [ ] Copy, timestamps, search, and jump-to-latest work without losing scroll position.
-- [ ] Controls remain usable at 320 px.
+- [x] Copy, timestamps, search, and jump-to-latest work without losing scroll position.
+- [x] Controls remain usable at 320 px.
 
 **Verification:** focused UI tests and mobile browser interactions.
 
@@ -123,8 +123,8 @@
 ## Task 10: Optimistic sending
 
 **Acceptance criteria:**
-- [ ] Sent text appears immediately as pending.
-- [ ] Transcript reconciliation removes the pending state without duplication.
+- [x] Sent text appears immediately as pending.
+- [x] Transcript reconciliation removes the pending state without duplication.
 
 **Verification:** state tests and real Codex/Claude send/reply checks.
 
@@ -134,7 +134,7 @@
 
 ## Checkpoint: conversation PR
 
-- [ ] Tasks 8–10 pass all tests and real-provider verification.
+- [x] Tasks 8–10 pass all tests and real-provider verification.
 - [ ] PR merged, branch removed, production healthy.
 
 ## Task 11: Session metadata
