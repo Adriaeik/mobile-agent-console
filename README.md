@@ -29,6 +29,7 @@ agent keeps running in tmux when the browser disconnects.
 The console can:
 
 - list, open, create, and stop named tmux sessions;
+- search, filter, and pin sessions with pinned/recent ordering;
 - launch an agent in a selected project with a model and permission profile;
 - stream the real terminal UI through xterm.js and WebSockets;
 - switch Codex and Claude sessions to a filtered conversation view that shows
@@ -109,6 +110,9 @@ Then run:
 The script validates the config, installs locked dependencies and a systemd
 user service, then adds a dedicated Tailscale Serve listener. Port 8443 is the
 default; an existing listener is never overwritten.
+
+The dashboard keeps only its provider filter and pinned session names in local
+browser storage. Conversation content is never stored there.
 
 If the service must survive logout, enable lingering once:
 

@@ -58,7 +58,7 @@ async function stopServer(child) {
 
 async function openSession(page) {
   await page.waitForSelector(".session-card");
-  await page.click(".session-card .open");
+  await page.locator(".session-card", { hasText: SESSION }).locator(".open").click();
   await page.waitForFunction(
     () => document.querySelector("#terminal-state")?.textContent?.startsWith("Live"),
     null,
@@ -69,6 +69,8 @@ async function openSession(page) {
 async function main() {
   await tmux("kill-server").catch(() => {});
   await tmux("new-session", "-d", "-s", SESSION, "-x", "80", "-y", "24", "bash --norc --noprofile");
+  await tmux("new-session", "-d", "-s", "alpha-shell", "-x", "80", "-y", "24", "bash --norc --noprofile");
+  await tmux("new-session", "-d", "-s", "misc-process", "-x", "80", "-y", "24", "sleep 1000");
   let server = await startServer();
   const browser = await chromium.launch();
   const context = await browser.newContext({
@@ -213,6 +215,41 @@ async function main() {
     check("reconnected composer sends successfully", stdout.includes("reliability-draft-sent"));
     check("successful send clears the draft", await page.evaluate(() => sessionStorage.length) === 0);
     check("server change is announced", await page.locator("#update-banner").isVisible());
+
+    const sessionPayload = await context.request.get(`http://127.0.0.1:${PORT}/api/sessions`).then((response) => response.json());
+    const byName = Object.fromEntries(sessionPayload.sessions.map((session) => [session.name, session]));
+    check("session API exposes activity and stable provider categories",
+      Number.isFinite(byName[SESSION]?.lastActivity) &&
+      byName[SESSION]?.provider === "shell" &&
+      byName["misc-process"]?.provider === "other");
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForSelector("#dashboard:not(.hidden) .session-card");
+    await page.selectOption("#session-provider", "other");
+    check("provider filter isolates generic processes",
+      await page.locator(".session-card").count() === 1 &&
+      await page.locator(".session-card h2").innerText() === "misc-process");
+    await page.setViewportSize({ width: 320, height: 700 });
+    const dashboardOverflow = await page.evaluate(() => ({
+      page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      tools: document.querySelector(".session-tools").scrollWidth - document.querySelector(".session-tools").clientWidth,
+    }));
+    check("dashboard controls fit at 320px", dashboardOverflow.page === 0 && dashboardOverflow.tools === 0, JSON.stringify(dashboardOverflow));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.selectOption("#session-provider", "all");
+    await page.fill("#session-search", "sleep");
+    check("session search covers commands", await page.locator(".session-card h2").innerText() === "misc-process");
+    await page.fill("#session-search", "");
+    await page.locator(".session-card", { hasText: SESSION }).locator(".pin-session").click();
+    check("pinning moves a session ahead of recent sessions", await page.locator(".session-card h2").first().innerText() === SESSION);
+    await page.reload({ waitUntil: "networkidle" });
+    check("pinning survives reload", await page.locator(".session-card h2").first().innerText() === SESSION);
+    await page.selectOption("#session-provider", "other");
+    await page.reload({ waitUntil: "networkidle" });
+    check("provider preference survives reload",
+      await page.inputValue("#session-provider") === "other" && await page.locator(".session-card").count() === 1);
+    const localValues = await page.evaluate(() => Object.values(localStorage));
+    check("local preferences contain no conversation content",
+      !JSON.stringify(localValues).includes("Test response") && !JSON.stringify(localValues).includes("optimistic-e2e"));
   } finally {
     await browser.close();
     await stopServer(server);

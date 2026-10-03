@@ -29,6 +29,17 @@
       <span id="identity">Connecting…</span>
     </section>
 
+    <section class="session-tools" aria-label="Session filters">
+      <input id="session-search" type="search" placeholder="Search sessions" aria-label="Search sessions">
+      <select id="session-provider" aria-label="Filter by provider">
+        <option value="all">All</option>
+        <option value="codex">Codex</option>
+        <option value="claude">Claude</option>
+        <option value="shell">Shell</option>
+        <option value="other">Other</option>
+      </select>
+    </section>
+
     <section id="sessions" class="session-list" aria-live="polite"></section>
     <button id="new-session" class="primary floating">＋ New session</button>
   </main>

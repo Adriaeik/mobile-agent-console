@@ -36,6 +36,9 @@ publish an unpatched vulnerability in an issue.
   the session-control toggle. Their title and body are fixed generic strings;
   transcript text, terminal output, project paths, and session names are never
   copied into an operating-system notification.
+- Dashboard preferences in `localStorage` are limited to the provider filter and
+  pinned tmux session names. Search text, project paths, commands, terminal data,
+  and conversation content are not persisted there.
 
 The server refuses to start in production with local authentication or a
 non-loopback listener. Tailscale identity headers are trusted only because the

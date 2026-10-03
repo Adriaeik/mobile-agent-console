@@ -12,7 +12,7 @@ ExecStart=/usr/bin/bash -lc 'exec node src/server.js'
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=10
-KillMode=process
+KillMode=mixed
 UMask=0077
 
 [Install]
