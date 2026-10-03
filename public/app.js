@@ -106,6 +106,9 @@ function setConversationMode(enabled, { focus = true } = {}) {
   $("#terminal-fit").classList.toggle("hidden", state.conversationMode);
   $("#conversation-toggle").setAttribute("aria-pressed", String(state.conversationMode));
   $("#conversation-toggle").querySelector("span").textContent = state.conversationMode ? "Hide" : "Show";
+  $("#view-toggle").setAttribute("aria-pressed", String(state.conversationMode));
+  $("#view-toggle").setAttribute("aria-label", state.conversationMode ? "Show terminal view" : "Show chat view");
+  $("#view-toggle").textContent = state.conversationMode ? "Terminal" : "Chat";
 
   if (state.conversationMode) {
     if (!wasEnabled) state.composerBeforeConversation = !$("#composer").classList.contains("hidden");
@@ -671,6 +674,7 @@ $("#directory-close").addEventListener("click", () => $("#directory-dialog").clo
 $("#directory-select").addEventListener("click", () => { $("#session-path").value = $("#directory-current").textContent; $("#directory-dialog").close(); });
 $("#terminal-back").addEventListener("click", closeTerminal);
 $("#terminal-fit").addEventListener("click", fitTerminal);
+$("#view-toggle").addEventListener("click", () => setConversationMode(!state.conversationMode));
 window.addEventListener("resize", () => setTimeout(fitTerminal, 80));
 window.visualViewport?.addEventListener("resize", trackViewport);
 window.visualViewport?.addEventListener("scroll", trackViewport);

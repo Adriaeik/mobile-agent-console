@@ -130,8 +130,7 @@ async function main() {
       );
       await sleep(1000);
 
-      await page.click("#tmux-controls");
-      await page.getByRole("button", { name: /Conversation view/ }).click();
+      await page.click("#view-toggle");
       await page.waitForFunction(
         (label) => document.querySelector("#terminal-state")?.textContent === `Conversation · ${label}`,
         provider.id === "claude" ? "Claude" : "Codex",
@@ -150,6 +149,10 @@ async function main() {
       check(`${provider.label}: conversation view replaces terminal controls`,
         conversation.terminalHidden && conversation.keysHidden,
         `terminalHidden=${conversation.terminalHidden}, keysHidden=${conversation.keysHidden}`);
+      check(`${provider.label}: header toggle offers the terminal view`,
+        await page.locator("#view-toggle").getAttribute("aria-pressed") === "true" &&
+          await page.locator("#view-toggle").innerText() === "Terminal",
+        `label=${await page.locator("#view-toggle").innerText()}`);
 
       const responseMarker = `CHAT-INPUT-${provider.id.toUpperCase()}-${process.pid}`;
       const chatPrompt = `Reply with exactly ${responseMarker}. Do not use tools.`;
@@ -188,8 +191,7 @@ async function main() {
       check(`${provider.label}: refresh preserves an older reading position`, retainedScroll <= 80,
         `scrollTop=${Math.round(retainedScroll)}`);
 
-      await page.click("#tmux-controls");
-      await page.getByRole("button", { name: /Conversation view/ }).click();
+      await page.click("#view-toggle");
       await page.waitForFunction(() =>
         !document.querySelector("#terminal").classList.contains("hidden") &&
         document.querySelector(".xterm-rows")?.textContent?.length > 0
@@ -197,6 +199,10 @@ async function main() {
       check(`${provider.label}: terminal restores after conversation view`,
         (await page.locator("#terminal-state").innerText()).startsWith("Live"),
         await page.locator("#terminal-state").innerText());
+      check(`${provider.label}: header toggle offers the chat view`,
+        await page.locator("#view-toggle").getAttribute("aria-pressed") === "false" &&
+          await page.locator("#view-toggle").innerText() === "Chat",
+        `label=${await page.locator("#view-toggle").innerText()}`);
 
       const beforeText = await page.locator(".xterm-rows").innerText();
       const before = await paneState(target);

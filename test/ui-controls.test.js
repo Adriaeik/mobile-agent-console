@@ -17,6 +17,13 @@ test("offers an optional conversation view without replacing the terminal", asyn
   assert.match(html, /id="terminal"/);
 });
 
+test("keeps a terminal and chat view toggle in the session header", async () => {
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  assert.match(html, /class="terminal-header"[\s\S]*id="view-toggle"/);
+  assert.match(html, /id="view-toggle"[^>]+aria-controls="terminal conversation"/);
+  assert.match(html, />Chat<\/button>/);
+});
+
 test("offers an accessible message composer for the active agent", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
   assert.match(html, /id="composer"[^>]+aria-label="Send message to agent"/);
