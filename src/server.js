@@ -6,7 +6,8 @@ import { WebSocketServer } from "ws";
 import pty from "node-pty";
 import { assertSafeConfiguration, authMiddleware, authorizeRequest, isLoopback, validateOrigin } from "./security.js";
 import { buildLaunch, loadProviders, publicProvider } from "./providers.js";
-import { createSession, ensureTmuxMouse, getCopyModeState, hasSessionId, killSession, listDirectories, listSessions, scrollCopyMode, setCopyMode } from "./tmux.js";
+import { loadConversationForPane } from "./conversation.js";
+import { createSession, ensureTmuxMouse, getCopyModeState, getSessionPane, hasSessionId, killSession, listDirectories, listSessions, scrollCopyMode, setCopyMode } from "./tmux.js";
 import { InputError, parseAllowedRoots, validateDirectory, validateOption, validatePrompt, validateSessionName } from "./validation.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -52,6 +53,17 @@ app.get("/api/config", (req, res) => {
 
 app.get("/api/sessions", async (_req, res, next) => {
   try { res.json({ sessions: await listSessions() }); } catch (error) { next(error); }
+});
+
+app.get("/api/sessions/:id/conversation", async (req, res, next) => {
+  try {
+    const id = String(req.params.id);
+    if (!/^\$[0-9]+$/.test(id)) throw new InputError("Invalid tmux session id.");
+    if (!await hasSessionId(id)) throw new InputError("Session not found.", 404);
+    const pane = await getSessionPane(id);
+    res.set("Cache-Control", "no-store");
+    res.json(await loadConversationForPane(pane));
+  } catch (error) { next(error); }
 });
 
 app.get("/api/directories", async (req, res, next) => {

@@ -90,6 +90,19 @@ async function main() {
       await touch("touchEnd", []);
     }
 
+    async function swipeConversation(fromRatio = 0.78, toRatio = 0.25, steps = 16) {
+      const box = await page.locator("#conversation").boundingBox();
+      const x = box.x + box.width / 2;
+      const fromY = box.y + box.height * fromRatio;
+      const toY = box.y + box.height * toRatio;
+      await touch("touchStart", [{ x, y: fromY, id: 2 }]);
+      for (let index = 1; index <= steps; index += 1) {
+        await touch("touchMove", [{ x, y: fromY + ((toY - fromY) * index) / steps, id: 2 }]);
+        await sleep(16);
+      }
+      await touch("touchEnd", []);
+    }
+
     for (const provider of [
       { id: "codex", permission: "balanced", label: "Codex" },
       { id: "claude", permission: "plan", label: "Claude Code" },
@@ -116,6 +129,49 @@ async function main() {
         { timeout: 180000 }
       );
       await sleep(1000);
+
+      await page.click("#tmux-controls");
+      await page.getByRole("button", { name: /Conversation view/ }).click();
+      await page.waitForFunction(
+        (label) => document.querySelector("#terminal-state")?.textContent === `Conversation · ${label}`,
+        provider.id === "claude" ? "Claude" : "Codex",
+        { timeout: 15000 }
+      );
+      const conversation = await page.evaluate(() => ({
+        messages: document.querySelectorAll(".conversation-message").length,
+        users: document.querySelectorAll(".conversation-message.user").length,
+        assistants: document.querySelectorAll(".conversation-message.assistant").length,
+        terminalHidden: document.querySelector("#terminal").classList.contains("hidden"),
+        keysHidden: document.querySelector(".key-row").classList.contains("hidden"),
+      }));
+      check(`${provider.label}: conversation view contains both roles`,
+        conversation.users > 0 && conversation.assistants > 0,
+        `${conversation.messages} messages (${conversation.users} user, ${conversation.assistants} assistant)`);
+      check(`${provider.label}: conversation view replaces terminal controls`,
+        conversation.terminalHidden && conversation.keysHidden,
+        `terminalHidden=${conversation.terminalHidden}, keysHidden=${conversation.keysHidden}`);
+
+      await page.locator("#conversation").evaluate((element) => { element.scrollTop = 0; });
+      await swipeConversation();
+      await sleep(500);
+      const conversationScroll = await page.locator("#conversation").evaluate((element) => element.scrollTop);
+      check(`${provider.label}: conversation supports native touch scrolling`, conversationScroll > 0,
+        `scrollTop=${Math.round(conversationScroll)}`);
+      await page.locator("#conversation").evaluate((element) => { element.scrollTop = 0; });
+      await sleep(3400);
+      const retainedScroll = await page.locator("#conversation").evaluate((element) => element.scrollTop);
+      check(`${provider.label}: refresh preserves an older reading position`, retainedScroll <= 80,
+        `scrollTop=${Math.round(retainedScroll)}`);
+
+      await page.click("#tmux-controls");
+      await page.getByRole("button", { name: /Conversation view/ }).click();
+      await page.waitForFunction(() =>
+        !document.querySelector("#terminal").classList.contains("hidden") &&
+        document.querySelector(".xterm-rows")?.textContent?.length > 0
+      );
+      check(`${provider.label}: terminal restores after conversation view`,
+        (await page.locator("#terminal-state").innerText()).startsWith("Live"),
+        await page.locator("#terminal-state").innerText());
 
       const beforeText = await page.locator(".xterm-rows").innerText();
       const before = await paneState(target);

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeCopyScroll, parsePaneState, shouldEnableTmuxMouse, tmuxMouseArgs } from "../src/tmux.js";
+import { normalizeCopyScroll, paneTarget, parsePaneState, shouldEnableTmuxMouse, tmuxMouseArgs } from "../src/tmux.js";
 
 test("allows only known tmux copy-mode scroll actions", () => {
   assert.deepEqual(normalizeCopyScroll("line-up", 7), { command: "scroll-up", repetitions: 7 });
@@ -38,4 +38,10 @@ test("reports whether the pane owns mouse input or alternate-screen history", ()
     alternateScreen: true,
   });
   assert.equal(parsePaneState("0\t\t0\t1\t1\n").mouseTracking, true);
+});
+
+test("targets only window zero pane zero for conversation discovery", () => {
+  assert.equal(paneTarget("$12"), "$12:0.0");
+  assert.throws(() => paneTarget("$12:1.0"));
+  assert.throws(() => paneTarget("agent-name"));
 });

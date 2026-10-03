@@ -68,6 +68,16 @@ textarea { resize: vertical; }
 .terminal-title span { color: var(--muted); font-size: .68rem; }
 #terminal { min-height: 0; padding: 8px; overflow: hidden; touch-action: pinch-zoom; overscroll-behavior: contain; }
 #terminal .xterm { height: 100%; }
+.conversation { min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y pinch-zoom; padding: 16px 12px 28px; background: #090b0e; scrollbar-gutter: stable; }
+.conversation:focus { outline: none; }
+.conversation-messages { width: min(760px, 100%); margin: 0 auto; display: grid; gap: 18px; }
+.conversation-message { max-width: 94%; }
+.conversation-message.user { justify-self: end; width: fit-content; max-width: 88%; border: 1px solid #3d5428; border-radius: 18px 18px 5px 18px; background: #17210f; padding: 12px 14px; }
+.conversation-message.assistant { justify-self: start; width: 100%; }
+.conversation-message span { display: block; margin-bottom: 6px; color: var(--muted); font-size: .66rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.conversation-message.user span { color: var(--accent); }
+.conversation-message p { margin: 0; color: #e9eef1; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; font-size: .94rem; line-height: 1.58; }
+.conversation-empty { width: min(520px, 100%); margin: 24vh auto 0; padding: 0 24px; color: var(--muted); text-align: center; font-size: .88rem; line-height: 1.5; }
 .key-row { touch-action: manipulation; display: flex; gap: 5px; overflow-x: auto; padding: 7px 5px; border-top: 1px solid #1d2228; }
 /* Named keys never shrink below their own label, so nothing is ever clipped; they
    share whatever width the arrow cluster leaves over. */

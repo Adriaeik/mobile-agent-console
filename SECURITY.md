@@ -22,8 +22,16 @@ publish an unpatched vulnerability in an issue.
 - Restrict `ALLOWED_ROOTS` to directories the console genuinely needs.
 - Treat raw shell, full-host, and sandbox-bypass profiles as administrative
   access to the machine.
+- Treat Conversation view as access to local Codex and Claude transcripts. Its
+  endpoint returns only user and assistant text, but that text can still contain
+  sensitive project or operational information.
 - Never commit the runtime environment file or provider credentials.
 
 The server refuses to start in production with local authentication or a
 non-loopback listener. Tailscale identity headers are trusted only because the
 backend is loopback-only and Tailscale Serve is the sole ingress.
+
+Conversation view binds a validated tmux pane to the active provider process
+before reading history. Codex databases are opened read-only; Claude transcript
+records are accepted only from the exact active session ID. Unknown, ambiguous,
+meta, sidechain, reasoning, tool, command, and file-change records fail closed.

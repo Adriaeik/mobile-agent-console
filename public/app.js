@@ -4,6 +4,7 @@ import {
   wheelDeltasForStep,
   wheelDeltaToPixels,
 } from "./scroll.js";
+import { conversationSignature, shouldFollowConversation } from "./conversation-view.js";
 
 const $ = (selector) => document.querySelector(selector);
 const state = {
@@ -12,7 +13,8 @@ const state = {
   mouseTracking: false, alternateScreen: false,
   scrollInFlight: false, scrollTimer: null, stateRefreshTimer: null,
   lastScrollPosition: null, lastTuiPageAt: -Infinity, lastTuiPageAction: null,
-  viewportTimer: null
+  viewportTimer: null, conversationMode: false, conversationTimer: null,
+  conversationLoading: false, conversationGeneration: 0, conversationSignature: null
 };
 
 // Held keys and flicks would otherwise emit one websocket message per step; the
@@ -38,6 +40,94 @@ async function request(url, options = {}) {
     throw new Error(message);
   }
   return response.status === 204 ? null : response.json();
+}
+
+function renderConversation(payload) {
+  const root = $("#conversation");
+  const messagesRoot = $("#conversation-messages");
+  const empty = $("#conversation-empty");
+  if (!payload.available) {
+    messagesRoot.replaceChildren();
+    empty.textContent = payload.reason || "Conversation view is unavailable for this session.";
+    empty.classList.remove("hidden");
+    state.conversationSignature = null;
+    $("#terminal-state").textContent = "Conversation unavailable";
+    return;
+  }
+
+  const messages = Array.isArray(payload.messages) ? payload.messages : [];
+  const signature = conversationSignature(messages);
+  $("#terminal-state").textContent = `Conversation · ${payload.provider === "claude" ? "Claude" : "Codex"}`;
+  empty.textContent = "No user or assistant text has been recorded yet.";
+  empty.classList.toggle("hidden", messages.length > 0);
+  if (signature === state.conversationSignature) return;
+
+  const follow = !messagesRoot.childElementCount || shouldFollowConversation(root);
+  const fragment = document.createDocumentFragment();
+  for (const message of messages) {
+    if (!["user", "assistant"].includes(message.role) || typeof message.text !== "string") continue;
+    const article = document.createElement("article");
+    article.className = `conversation-message ${message.role}`;
+    const label = document.createElement("span");
+    label.textContent = message.role === "user" ? "You" : payload.provider === "claude" ? "Claude" : "Codex";
+    const text = document.createElement("p");
+    text.textContent = message.text;
+    article.append(label, text);
+    fragment.append(article);
+  }
+  messagesRoot.replaceChildren(fragment);
+  state.conversationSignature = signature;
+  if (follow) root.scrollTop = root.scrollHeight;
+}
+
+async function refreshConversation() {
+  if (!state.conversationMode || !state.active || state.conversationLoading) return;
+  const generation = state.conversationGeneration;
+  state.conversationLoading = true;
+  try {
+    const payload = await request(`/api/sessions/${encodeURIComponent(state.active.id)}/conversation`);
+    if (state.conversationMode && generation === state.conversationGeneration) renderConversation(payload);
+  } catch (error) {
+    if (state.conversationMode && generation === state.conversationGeneration) {
+      renderConversation({ available: false, reason: error.message });
+    }
+  } finally {
+    state.conversationLoading = false;
+    if (state.conversationMode && generation === state.conversationGeneration) {
+      state.conversationTimer = setTimeout(refreshConversation, document.hidden ? 5000 : 1500);
+    }
+  }
+}
+
+function setConversationMode(enabled, { focus = true } = {}) {
+  state.conversationMode = Boolean(enabled);
+  state.conversationGeneration += 1;
+  state.conversationLoading = false;
+  clearTimeout(state.conversationTimer);
+  state.conversationTimer = null;
+  state.conversationSignature = null;
+  $("#terminal").classList.toggle("hidden", state.conversationMode);
+  $("#conversation").classList.toggle("hidden", !state.conversationMode);
+  $(".key-row").classList.toggle("hidden", state.conversationMode);
+  $("#terminal-fit").classList.toggle("hidden", state.conversationMode);
+  $("#conversation-toggle").setAttribute("aria-pressed", String(state.conversationMode));
+  $("#conversation-toggle").querySelector("span").textContent = state.conversationMode ? "Hide" : "Show";
+
+  if (state.conversationMode) {
+    if (state.copyMode) requestCopyMode(false);
+    $("#conversation-empty").textContent = "Loading conversation…";
+    $("#conversation-empty").classList.remove("hidden");
+    $("#conversation-messages").replaceChildren();
+    $("#terminal-state").textContent = "Loading conversation…";
+    if (focus) $("#conversation").focus({ preventScroll: true });
+    refreshConversation();
+  } else {
+    $("#conversation-messages").replaceChildren();
+    $("#conversation-empty").classList.add("hidden");
+    syncScrollUi();
+    setTimeout(fitTerminal, 0);
+    if (focus) state.terminal?.focus();
+  }
 }
 
 function showPage(id) {
@@ -163,7 +253,7 @@ function syncScrollUi() {
   button.title = tui
     ? "Scroll up in the fullscreen application (PgUp)"
     : "Enter tmux copy mode (Ctrl-B then [)";
-  if (state.socket?.readyState === WebSocket.OPEN) {
+  if (!state.conversationMode && state.socket?.readyState === WebSocket.OPEN) {
     $("#terminal-state").textContent = tui ? "Live TUI · swipe to scroll" : "Live tmux · swipe to scroll";
   }
 }
@@ -183,7 +273,7 @@ function setCopyMode(active) {
   button.setAttribute("aria-pressed", String(active));
   button.title = active ? "Exit tmux copy mode (q)" : "Enter tmux copy mode (Ctrl-B then [)";
   $("#terminal").classList.toggle("copy-mode", active);
-  if (state.socket?.readyState === WebSocket.OPEN) {
+  if (!state.conversationMode && state.socket?.readyState === WebSocket.OPEN) {
     $("#terminal-state").textContent = active ? "Scroll mode · swipe or hold arrows" : "Live tmux · swipe to scroll";
   }
   syncScrollUi();
@@ -432,7 +522,7 @@ function trackViewport() {
 }
 
 function fitTerminal() {
-  if (!state.fit || !state.socket) return;
+  if (state.conversationMode || !state.fit || state.socket?.readyState !== WebSocket.OPEN) return;
   state.fit.fit();
   state.socket.send(JSON.stringify({ type: "resize", cols: state.terminal.cols, rows: state.terminal.rows }));
 }
@@ -450,6 +540,7 @@ function closeTerminal() {
   state.lastTuiPageAt = -Infinity;
   state.lastTuiPageAction = null;
   state.copyModeAssumed = false;
+  setConversationMode(false, { focus: false });
   state.socket?.close();
   state.socket = null;
   state.terminal?.dispose();
@@ -474,7 +565,8 @@ function setComposerVisible(visible) {
 
 function openTerminal(id, name) {
   showPage("terminal-page");
-  state.active = name;
+  state.active = { id, name };
+  setConversationMode(false, { focus: false });
   setCopyMode(false);
   $("#terminal-name").textContent = name;
   $("#terminal-state").textContent = "Connecting…";
@@ -492,7 +584,11 @@ function openTerminal(id, name) {
   state.terminal.open($("#terminal"));
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   state.socket = new WebSocket(`${protocol}//${location.host}/ws/sessions/${encodeURIComponent(id)}`);
-  state.socket.addEventListener("open", () => { $("#terminal-state").textContent = "Live tmux · window 0"; fitTerminal(); state.terminal.focus(); });
+  state.socket.addEventListener("open", () => {
+    if (!state.conversationMode) $("#terminal-state").textContent = "Live tmux · window 0";
+    fitTerminal();
+    if (!state.conversationMode) state.terminal.focus();
+  });
   state.socket.addEventListener("message", ({ data }) => {
     const message = JSON.parse(data);
     if (message.type === "output") state.terminal.write(message.data, () => {
@@ -635,6 +731,11 @@ window.addEventListener("pointerup", stopRepeat);
 window.addEventListener("blur", stopRepeat);
 document.addEventListener("visibilitychange", () => { if (document.hidden) { stopRepeat(); stopMomentum(); } });
 $("#tmux-copy").addEventListener("click", toggleCopyMode);
+$("#conversation-toggle").addEventListener("click", () => {
+  const enabled = !state.conversationMode;
+  closeTmuxControls();
+  setConversationMode(enabled);
+});
 $("#tmux-exit-copy").addEventListener("click", () => { requestCopyMode(false); closeTmuxControls(); });
 document.querySelectorAll("[data-copy-scroll]").forEach((button) => button.addEventListener("click", () => {
   if (activeScrollTarget() !== "tmux") {

@@ -43,6 +43,22 @@ function validatePaneTarget(target) {
   return target;
 }
 
+export function paneTarget(sessionId) {
+  if (!/^\$[0-9]+$/.test(sessionId)) throw new InputError("Invalid tmux session id.");
+  return `${sessionId}:0.0`;
+}
+
+export async function getSessionPane(sessionId) {
+  const target = paneTarget(sessionId);
+  const { stdout } = await runTmux([
+    "display-message", "-p", "-t", target,
+    "#{pane_current_path}\t#{pane_pid}\t#{pane_dead}"
+  ]);
+  const [cwd, pid, dead] = stdout.trimEnd().split("\t");
+  if (dead === "1" || !Number(pid)) throw new InputError("Session pane is not running.", 409);
+  return { cwd, pid: Number(pid) };
+}
+
 export function normalizeCopyScroll(action, count = 1) {
   const commands = {
     "line-up": "scroll-up",
