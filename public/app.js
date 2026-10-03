@@ -5,6 +5,7 @@ import {
   wheelDeltaToPixels,
 } from "./scroll.js";
 import { conversationSignature, shouldFollowConversation } from "./conversation-view.js";
+import { request } from "./api-client.js";
 
 const $ = (selector) => document.querySelector(selector);
 const state = {
@@ -31,16 +32,6 @@ const MOMENTUM_FRICTION = 0.94;
 const MOMENTUM_MIN_VELOCITY = 0.22;
 const MOMENTUM_MAX_VELOCITY = 4;
 const VIEWPORT_SETTLE = 120;
-
-async function request(url, options = {}) {
-  const response = await fetch(url, { headers: { "Content-Type": "application/json", ...(options.headers || {}) }, ...options });
-  if (!response.ok) {
-    let message = `Request failed (${response.status})`;
-    try { message = (await response.json()).error || message; } catch { /* ignore */ }
-    throw new Error(message);
-  }
-  return response.status === 204 ? null : response.json();
-}
 
 function renderConversation(payload) {
   const root = $("#conversation");
