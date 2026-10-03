@@ -5,11 +5,19 @@ import os from "node:os";
 import path from "node:path";
 import {
   MAX_IMAGE_BYTES,
+  defaultUploadRoot,
   saveImageUpload,
   validateImageUpload,
 } from "../src/uploads.js";
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
+
+test("keeps runtime uploads outside the application data symlink", () => {
+  assert.equal(
+    defaultUploadRoot({ HOME: "/home/developer" }),
+    "/home/developer/.local/share/mobile-agent-console-data/uploads"
+  );
+});
 
 test("accepts a supported image signature and rejects spoofed or oversized input", () => {
   assert.deepEqual(validateImageUpload("image/png", PNG), { extension: ".png", type: "image/png" });
