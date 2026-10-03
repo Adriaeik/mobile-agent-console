@@ -10,6 +10,8 @@ import { loadConversationForPane } from "./conversation.js";
 import { submitTerminalInput } from "./terminal-input.js";
 import { createSession, ensureTmuxMouse, getCopyModeState, getSessionPane, hasSessionId, killSession, listDirectories, listSessions, scrollCopyMode, setCopyMode } from "./tmux.js";
 import { InputError, parseAllowedRoots, validateDirectory, validateOption, validatePrompt, validateSessionName } from "./validation.js";
+import { API_PROTOCOL_VERSION, SERVER_INSTANCE_ID } from "./version.js";
+import { heartbeatClients, markAlive } from "./heartbeat.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
@@ -43,7 +45,10 @@ app.get("/vendor/xterm/xterm.css", (_req, res) => res.sendFile(path.join(root, "
 app.get("/vendor/xterm/addon-fit.js", (_req, res) => res.sendFile(path.join(root, "node_modules/@xterm/addon-fit/lib/addon-fit.js")));
 
 app.get("/api/config", (req, res) => {
+  res.set("Cache-Control", "no-store");
   res.json({
+    apiProtocol: API_PROTOCOL_VERSION,
+    instanceId: SERVER_INSTANCE_ID,
     identity: req.identity,
     roots: allowedRoots,
     providers: providers.map(publicProvider),
@@ -113,6 +118,9 @@ app.use((error, _req, res, _next) => {
 
 const server = http.createServer(app);
 const sockets = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
+const heartbeatTimer = setInterval(() => heartbeatClients(sockets.clients), 30000);
+heartbeatTimer.unref();
+sockets.on("close", () => clearInterval(heartbeatTimer));
 
 server.on("upgrade", async (req, socket, head) => {
   try {
@@ -132,6 +140,8 @@ server.on("upgrade", async (req, socket, head) => {
 });
 
 sockets.on("connection", (ws, req) => {
+  markAlive(ws);
+  ws.on("pong", () => markAlive(ws));
   const target = `${req.sessionId}:0.0`;
   let controlQueue = Promise.resolve();
   let submissionQueue = Promise.resolve();

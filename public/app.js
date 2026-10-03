@@ -7,6 +7,10 @@ import {
 import { conversationSignature, shouldFollowConversation } from "./conversation-view.js";
 import { request } from "./api-client.js";
 import { messagePayload, shouldSubmitComposerKey } from "./composer.js";
+import { assertCompatibleConfig, deploymentChanged, IncompatibleServerError } from "./version.js";
+import { reconnectDelay, shouldReconnect } from "./reconnect.js";
+import { clearDraft, loadDraft, saveDraft } from "./drafts.js";
+import { registerServiceWorker } from "./pwa.js";
 
 const $ = (selector) => document.querySelector(selector);
 const state = {
@@ -17,7 +21,8 @@ const state = {
   lastScrollPosition: null, lastTuiPageAt: -Infinity, lastTuiPageAction: null,
   viewportTimer: null, conversationMode: false, conversationTimer: null,
   conversationLoading: false, conversationGeneration: 0, conversationSignature: null,
-  composerBeforeConversation: false
+  composerBeforeConversation: false, reconnectTimer: null, reconnectAttempt: 0,
+  manualClose: false
 };
 
 // Held keys and flicks would otherwise emit one websocket message per step; the
@@ -34,6 +39,20 @@ const MOMENTUM_FRICTION = 0.94;
 const MOMENTUM_MIN_VELOCITY = 0.22;
 const MOMENTUM_MAX_VELOCITY = 4;
 const VIEWPORT_SETTLE = 120;
+
+function showUpdateBanner(message = "The console was updated. Reload to use the current version.") {
+  $("#update-message").textContent = message;
+  $("#update-banner").classList.remove("hidden");
+}
+
+async function checkDeployment() {
+  try {
+    const config = assertCompatibleConfig(await request("/api/config"));
+    if (deploymentChanged(state.config?.instanceId, config.instanceId)) showUpdateBanner();
+  } catch (error) {
+    if (error instanceof IncompatibleServerError) showUpdateBanner(error.message);
+  }
+}
 
 function renderConversation(payload) {
   const root = $("#conversation");
@@ -528,6 +547,9 @@ function fitTerminal() {
 }
 
 function closeTerminal() {
+  state.manualClose = true;
+  clearTimeout(state.reconnectTimer);
+  state.reconnectTimer = null;
   stopRepeat();
   stopMomentum();
   scroll.reset();
@@ -541,13 +563,16 @@ function closeTerminal() {
   state.lastTuiPageAction = null;
   state.copyModeAssumed = false;
   setConversationMode(false, { focus: false });
-  state.socket?.close();
+  const socket = state.socket;
   state.socket = null;
+  state.active = null;
+  socket?.close();
   state.terminal?.dispose();
   state.terminal = null;
   state.fit = null;
-  state.active = null;
+  state.reconnectAttempt = 0;
   state.copyModePending = false;
+  $("#message").value = "";
   setCopyMode(false);
   setComposerVisible(false);
   showPage("dashboard");
@@ -565,13 +590,97 @@ function setComposerVisible(visible, { focus = true } = {}) {
   }
 }
 
+function handleSocketMessage(data) {
+  const message = JSON.parse(data);
+  if (message.type === "output") state.terminal.write(message.data, () => {
+    syncScrollUi();
+    scheduleTmuxStateRefresh();
+  });
+  if (message.type === "exit") {
+    state.manualClose = true;
+    $("#terminal-state").textContent = `Terminal exited (${message.exitCode})`;
+  }
+  if (message.type === "tmux-state") {
+    // Momentum that no longer moves the pane has hit the top of the history.
+    state.mouseTracking = message.mouseTracking === true;
+    state.alternateScreen = message.alternateScreen === true;
+    const copyMode = message.copyMode === true;
+    if (momentum !== null && scrollTargetForPane({ ...state, copyMode }) === "tmux" &&
+        message.scrollPosition === state.lastScrollPosition) stopMomentum();
+    state.lastScrollPosition = message.scrollPosition;
+    setCopyMode(copyMode);
+    acknowledgeScroll();
+  }
+  if (message.type === "tmux-error") {
+    state.copyModePending = false;
+    state.copyModeAssumed = false;
+    stopMomentum();
+    scroll.reset();
+    acknowledgeScroll();
+    $("#tmux-copy").disabled = false;
+    $("#terminal-state").textContent = message.error;
+  }
+}
+
+function scheduleReconnect() {
+  clearTimeout(state.reconnectTimer);
+  state.reconnectTimer = null;
+  if (!shouldReconnect({ active: state.active, manualClose: state.manualClose, online: navigator.onLine !== false })) {
+    if (state.active && navigator.onLine === false) $("#terminal-state").textContent = "Offline · waiting to reconnect";
+    return;
+  }
+  const delay = reconnectDelay(state.reconnectAttempt);
+  state.reconnectAttempt += 1;
+  $("#terminal-state").textContent = `Reconnecting in ${Math.ceil(delay / 1000)}s…`;
+  state.reconnectTimer = setTimeout(connectTerminalSocket, delay);
+}
+
+function connectTerminalSocket() {
+  if (!state.active || state.manualClose) return;
+  clearTimeout(state.reconnectTimer);
+  state.reconnectTimer = null;
+  const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+  const socket = new WebSocket(`${protocol}//${location.host}/ws/sessions/${encodeURIComponent(state.active.id)}`);
+  state.socket = socket;
+  $("#terminal-state").textContent = state.reconnectAttempt ? "Reconnecting…" : "Connecting…";
+  socket.addEventListener("open", () => {
+    if (state.socket !== socket) return;
+    state.reconnectAttempt = 0;
+    if (!state.conversationMode) $("#terminal-state").textContent = "Live tmux · window 0";
+    fitTerminal();
+    if (!state.conversationMode) state.terminal.focus();
+    checkDeployment();
+  });
+  socket.addEventListener("message", ({ data }) => {
+    if (state.socket === socket) handleSocketMessage(data);
+  });
+  socket.addEventListener("close", () => {
+    if (state.socket !== socket) return;
+    state.socket = null;
+    stopRepeat();
+    setCopyMode(false);
+    if (!state.manualClose) scheduleReconnect();
+  });
+  socket.addEventListener("error", () => socket.close());
+}
+
+function reconnectNow() {
+  if (!shouldReconnect({ active: state.active, manualClose: state.manualClose, online: navigator.onLine !== false })) return;
+  if ([WebSocket.CONNECTING, WebSocket.OPEN].includes(state.socket?.readyState)) return;
+  state.reconnectAttempt = 0;
+  connectTerminalSocket();
+}
+
 function openTerminal(id, name) {
   showPage("terminal-page");
   state.active = { id, name };
+  state.manualClose = false;
+  state.reconnectAttempt = 0;
   setConversationMode(false, { focus: false });
   setCopyMode(false);
   $("#terminal-name").textContent = name;
   $("#terminal-state").textContent = "Connecting…";
+  $("#message").value = loadDraft(sessionStorage, id);
   $("#terminal").replaceChildren();
   state.terminal = new Terminal({
     cursorBlink: true,
@@ -584,43 +693,8 @@ function openTerminal(id, name) {
   state.fit = new FitAddon.FitAddon();
   state.terminal.loadAddon(state.fit);
   state.terminal.open($("#terminal"));
-  const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-  state.socket = new WebSocket(`${protocol}//${location.host}/ws/sessions/${encodeURIComponent(id)}`);
-  state.socket.addEventListener("open", () => {
-    if (!state.conversationMode) $("#terminal-state").textContent = "Live tmux · window 0";
-    fitTerminal();
-    if (!state.conversationMode) state.terminal.focus();
-  });
-  state.socket.addEventListener("message", ({ data }) => {
-    const message = JSON.parse(data);
-    if (message.type === "output") state.terminal.write(message.data, () => {
-      syncScrollUi();
-      scheduleTmuxStateRefresh();
-    });
-    if (message.type === "exit") $("#terminal-state").textContent = `Terminal exited (${message.exitCode})`;
-    if (message.type === "tmux-state") {
-      // Momentum that no longer moves the pane has hit the top of the history.
-      state.mouseTracking = message.mouseTracking === true;
-      state.alternateScreen = message.alternateScreen === true;
-      const copyMode = message.copyMode === true;
-      if (momentum !== null && scrollTargetForPane({ ...state, copyMode }) === "tmux" &&
-          message.scrollPosition === state.lastScrollPosition) stopMomentum();
-      state.lastScrollPosition = message.scrollPosition;
-      setCopyMode(copyMode);
-      acknowledgeScroll();
-    }
-    if (message.type === "tmux-error") {
-      state.copyModePending = false;
-      state.copyModeAssumed = false;
-      stopMomentum();
-      scroll.reset();
-      acknowledgeScroll();
-      $("#tmux-copy").disabled = false;
-      $("#terminal-state").textContent = message.error;
-    }
-  });
-  state.socket.addEventListener("close", () => { stopRepeat(); setCopyMode(false); $("#terminal-state").textContent = "Disconnected"; });
   state.terminal.onData(handleTerminalInput);
+  connectTerminalSocket();
   setTimeout(fitTerminal, 50);
 }
 
@@ -645,7 +719,7 @@ async function browseDirectory(path) {
 }
 
 async function init() {
-  state.config = await request("/api/config");
+  state.config = assertCompatibleConfig(await request("/api/config"));
   $("#identity").textContent = state.config.authMode === "tailscale"
     ? `${state.config.identity.name} · verified by Tailscale`
     : "Local development mode";
@@ -661,9 +735,11 @@ async function init() {
   providerChanged();
   await refreshSessions();
   setInterval(() => { if (!state.active) refreshSessions(); }, 5000);
+  setInterval(checkDeployment, 60000);
 }
 
 $("#refresh").addEventListener("click", refreshSessions);
+$("#reload-app").addEventListener("click", () => location.reload());
 $("#new-session").addEventListener("click", () => showPage("create-page"));
 document.querySelectorAll(".back").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.target)));
 $("#provider").addEventListener("change", providerChanged);
@@ -676,6 +752,10 @@ $("#terminal-back").addEventListener("click", closeTerminal);
 $("#terminal-fit").addEventListener("click", fitTerminal);
 $("#view-toggle").addEventListener("click", () => setConversationMode(!state.conversationMode));
 window.addEventListener("resize", () => setTimeout(fitTerminal, 80));
+window.addEventListener("online", reconnectNow);
+window.addEventListener("offline", () => {
+  if (state.active) $("#terminal-state").textContent = "Offline · waiting to reconnect";
+});
 window.visualViewport?.addEventListener("resize", trackViewport);
 window.visualViewport?.addEventListener("scroll", trackViewport);
 // Focusing an input is what raises the keyboard; iOS reports the new viewport late.
@@ -732,7 +812,15 @@ document.querySelectorAll("button[data-key]").forEach((button) => {
 });
 window.addEventListener("pointerup", stopRepeat);
 window.addEventListener("blur", stopRepeat);
-document.addEventListener("visibilitychange", () => { if (document.hidden) { stopRepeat(); stopMomentum(); } });
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    stopRepeat();
+    stopMomentum();
+  } else {
+    reconnectNow();
+    checkDeployment();
+  }
+});
 $("#tmux-copy").addEventListener("click", toggleCopyMode);
 $("#conversation-toggle").addEventListener("click", () => {
   const enabled = !state.conversationMode;
@@ -779,9 +867,13 @@ $("#composer").addEventListener("submit", (event) => {
     $("#terminal-state").textContent = "Disconnected · message not sent";
     return;
   }
+  clearDraft(sessionStorage, state.active.id);
   field.value = "";
   field.focus({ preventScroll: true });
   if (state.conversationMode) $("#terminal-state").textContent = "Message sent · waiting for agent";
+});
+$("#message").addEventListener("input", (event) => {
+  if (state.active) saveDraft(sessionStorage, state.active.id, event.currentTarget.value);
 });
 $("#message").addEventListener("keydown", (event) => {
   if (!shouldSubmitComposerKey(event)) return;
@@ -808,4 +900,9 @@ $("#terminal").addEventListener("wheel", (event) => {
   queueScrollPixels(pixels);
 }, { passive: false, capture: true });
 
-init().catch((error) => { $("#identity").textContent = error.message; });
+registerServiceWorker().catch(() => {});
+
+init().catch((error) => {
+  $("#identity").textContent = error.message;
+  if (error instanceof IncompatibleServerError) showUpdateBanner(error.message);
+});

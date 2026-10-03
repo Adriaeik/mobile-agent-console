@@ -5,10 +5,16 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
   <meta name="theme-color" content="#0b0d10">
   <title>Agent Console</title>
+  <link rel="manifest" href="/app.webmanifest" crossorigin="use-credentials">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <link rel="stylesheet" href="/vendor/xterm/xterm.css">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
+  <div id="update-banner" class="update-banner hidden" role="status">
+    <span id="update-message">The console was updated.</span>
+    <button id="reload-app" type="button">Reload</button>
+  </div>
   <main id="dashboard" class="page">
     <header class="topbar">
       <div>

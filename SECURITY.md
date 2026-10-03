@@ -26,6 +26,12 @@ publish an unpatched vulnerability in an issue.
   endpoint returns only user and assistant text, but that text can still contain
   sensitive project or operational information.
 - Never commit the runtime environment file or provider credentials.
+- The optional installable app registers a service worker, but deliberately has
+  no fetch handler or content cache. Do not add offline transcript or terminal
+  caching without a separate security review.
+- Unsent composer drafts live only in per-tab `sessionStorage`, are bounded to
+  8,000 characters, and are removed after a successful socket send. A draft can
+  still contain sensitive text, so close the tab to discard its tab-scoped data.
 
 The server refuses to start in production with local authentication or a
 non-loopback listener. Tailscale identity headers are trusted only because the
