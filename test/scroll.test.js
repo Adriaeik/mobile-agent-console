@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   MAX_LINES_PER_MESSAGE,
   ScrollAccumulator,
-  scrollTargetForMouseMode,
+  scrollTargetForPane,
   wheelDeltasForStep,
   wheelDeltaToPixels,
 } from "../public/scroll.js";
@@ -66,12 +66,11 @@ test("converts every wheel delta mode to pixels", () => {
   assert.equal(wheelDeltaToPixels(1, 2, 18), -180);
 });
 
-test("routes scroll to a fullscreen TUI whenever it requested mouse tracking", () => {
-  for (const mode of ["x10", "vt200", "drag", "any"]) {
-    assert.equal(scrollTargetForMouseMode(mode), "terminal");
-  }
-  assert.equal(scrollTargetForMouseMode("none"), "tmux");
-  assert.equal(scrollTargetForMouseMode(undefined), "tmux");
+test("uses page keys when a fullscreen TUI does not request mouse tracking", () => {
+  assert.equal(scrollTargetForPane({ mouseTracking: true, alternateScreen: true }), "terminal");
+  assert.equal(scrollTargetForPane({ mouseTracking: false, alternateScreen: true }), "terminal-keys");
+  assert.equal(scrollTargetForPane({ mouseTracking: false, alternateScreen: false }), "tmux");
+  assert.equal(scrollTargetForPane({ copyMode: true, mouseTracking: true, alternateScreen: true }), "tmux");
 });
 
 test("turns a scroll step into individual wheel events for xterm", () => {

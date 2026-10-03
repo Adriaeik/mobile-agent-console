@@ -1,6 +1,6 @@
 import {
   ScrollAccumulator,
-  scrollTargetForMouseMode,
+  scrollTargetForPane,
   wheelDeltasForStep,
   wheelDeltaToPixels,
 } from "./scroll.js";
@@ -9,14 +9,17 @@ const $ = (selector) => document.querySelector(selector);
 const state = {
   config: null, sessions: [], socket: null, terminal: null, fit: null, active: null,
   copyMode: false, copyModePending: false, copyModeAssumed: false,
+  mouseTracking: false, alternateScreen: false,
   scrollInFlight: false, scrollTimer: null, stateRefreshTimer: null,
-  lastScrollPosition: null, viewportTimer: null
+  lastScrollPosition: null, lastTuiPageAt: -Infinity, lastTuiPageAction: null,
+  viewportTimer: null
 };
 
 // Held keys and flicks would otherwise emit one websocket message per step; the
 // accumulator batches them into a single counted tmux scroll per round trip.
 const scroll = new ScrollAccumulator();
 const SCROLL_ACK_TIMEOUT = 600;
+const TUI_PAGE_INTERVAL = 180;
 const TOUCH_SLOP = 8;
 const REPEAT_DELAY = 350;
 const REPEAT_INTERVAL = 55;
@@ -148,31 +151,28 @@ function scheduleTmuxStateRefresh() {
   }, 100);
 }
 
-function terminalMouseMode() {
-  return state.terminal?.modes?.mouseTrackingMode || "none";
-}
-
-function usesTerminalScroll() {
-  return !state.copyMode && scrollTargetForMouseMode(terminalMouseMode()) === "terminal";
+function activeScrollTarget() {
+  return scrollTargetForPane(state);
 }
 
 function syncScrollUi() {
   const button = $("#tmux-copy");
   if (!button || state.copyMode) return;
-  const native = usesTerminalScroll();
+  const tui = activeScrollTarget() !== "tmux";
   button.setAttribute("aria-pressed", "false");
-  button.title = native
+  button.title = tui
     ? "Scroll up in the fullscreen application (PgUp)"
     : "Enter tmux copy mode (Ctrl-B then [)";
   if (state.socket?.readyState === WebSocket.OPEN) {
-    $("#terminal-state").textContent = native ? "Live TUI · swipe to scroll" : "Live tmux · swipe to scroll";
+    $("#terminal-state").textContent = tui ? "Live TUI · swipe to scroll" : "Live tmux · swipe to scroll";
   }
 }
 
 function setCopyMode(active) {
+  const wasActive = state.copyMode;
   state.copyMode = active;
   state.copyModePending = false;
-  if (!active) {
+  if (wasActive && !active) {
     state.copyModeAssumed = false;
     stopMomentum();
     scroll.reset();
@@ -197,7 +197,7 @@ function requestCopyMode(enabled) {
 }
 
 function toggleCopyMode() {
-  if (usesTerminalScroll()) {
+  if (activeScrollTarget() !== "tmux") {
     queueScrollPage("page-up");
     state.terminal?.focus();
     return;
@@ -211,14 +211,27 @@ function scrollCopyMode(action, count = 1) {
 }
 
 function queueScrollPage(action) {
+  if (activeScrollTarget() === "terminal-keys") {
+    sendTuiPage(action, true);
+    return;
+  }
   const lines = Math.max(1, (state.terminal?.rows || 24) - 2);
   queueScrollLines(action === "page-up" ? lines : -lines);
+}
+
+function sendTuiPage(action, force = false) {
+  const pageAction = ["line-up", "page-up"].includes(action) ? "page-up" : "page-down";
+  const now = performance.now();
+  if (!force && pageAction === state.lastTuiPageAction && now - state.lastTuiPageAt < TUI_PAGE_INTERVAL) return false;
+  state.lastTuiPageAt = now;
+  state.lastTuiPageAction = pageAction;
+  return send(pageAction === "page-up" ? "\u001b[5~" : "\u001b[6~");
 }
 
 // tmux enters copy mode by itself on the first scroll-up, exactly like a wheel in a
 // mouse-enabled terminal. Scrolling down while already live has nothing to reveal.
 function scrolling() {
-  return usesTerminalScroll() || state.copyMode || state.copyModeAssumed;
+  return activeScrollTarget() !== "tmux" || state.copyMode || state.copyModeAssumed;
 }
 
 function dispatchTerminalScroll(step) {
@@ -245,9 +258,15 @@ function flushScroll() {
   if (!scrolling() && scroll.pending < 0) scroll.reset();
   const step = scroll.next();
   if (!step) return;
-  if (usesTerminalScroll()) {
+  const target = activeScrollTarget();
+  if (target === "terminal") {
     if (!dispatchTerminalScroll(step)) scroll.reset();
     else if (scroll.pending) queueMicrotask(flushScroll);
+    return;
+  }
+  if (target === "terminal-keys") {
+    sendTuiPage(step.action);
+    if (scroll.pending) queueMicrotask(flushScroll);
     return;
   }
   if (!sendSocket({ type: "copy-scroll", ...step })) {
@@ -426,6 +445,11 @@ function closeTerminal() {
   state.scrollTimer = null;
   state.scrollInFlight = false;
   state.lastScrollPosition = null;
+  state.mouseTracking = false;
+  state.alternateScreen = false;
+  state.lastTuiPageAt = -Infinity;
+  state.lastTuiPageAction = null;
+  state.copyModeAssumed = false;
   state.socket?.close();
   state.socket = null;
   state.terminal?.dispose();
@@ -471,13 +495,20 @@ function openTerminal(id, name) {
   state.socket.addEventListener("open", () => { $("#terminal-state").textContent = "Live tmux · window 0"; fitTerminal(); state.terminal.focus(); });
   state.socket.addEventListener("message", ({ data }) => {
     const message = JSON.parse(data);
-    if (message.type === "output") state.terminal.write(message.data, syncScrollUi);
+    if (message.type === "output") state.terminal.write(message.data, () => {
+      syncScrollUi();
+      scheduleTmuxStateRefresh();
+    });
     if (message.type === "exit") $("#terminal-state").textContent = `Terminal exited (${message.exitCode})`;
     if (message.type === "tmux-state") {
       // Momentum that no longer moves the pane has hit the top of the history.
-      if (momentum !== null && message.scrollPosition === state.lastScrollPosition) stopMomentum();
+      state.mouseTracking = message.mouseTracking === true;
+      state.alternateScreen = message.alternateScreen === true;
+      const copyMode = message.copyMode === true;
+      if (momentum !== null && scrollTargetForPane({ ...state, copyMode }) === "tmux" &&
+          message.scrollPosition === state.lastScrollPosition) stopMomentum();
       state.lastScrollPosition = message.scrollPosition;
-      setCopyMode(message.copyMode === true);
+      setCopyMode(copyMode);
       acknowledgeScroll();
     }
     if (message.type === "tmux-error") {
@@ -606,7 +637,7 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) { sto
 $("#tmux-copy").addEventListener("click", toggleCopyMode);
 $("#tmux-exit-copy").addEventListener("click", () => { requestCopyMode(false); closeTmuxControls(); });
 document.querySelectorAll("[data-copy-scroll]").forEach((button) => button.addEventListener("click", () => {
-  if (usesTerminalScroll()) {
+  if (activeScrollTarget() !== "tmux") {
     queueScrollPage(button.dataset.copyScroll);
     state.terminal?.focus();
   } else {
@@ -652,7 +683,7 @@ $("#terminal").addEventListener("wheel", (event) => {
   if (event.deltaY === 0) return;
   // xterm translates native wheel events into the mouse protocol requested by
   // tmux/fullscreen TUIs. Let its target listener see the event unchanged.
-  if (usesTerminalScroll()) {
+  if (activeScrollTarget() === "terminal") {
     scheduleTmuxStateRefresh();
     return;
   }

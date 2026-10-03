@@ -36,13 +36,14 @@ The console can:
 - scroll inside fullscreen agent TUIs or through ordinary tmux history, with
   quick controls and common or custom `Ctrl-B` commands.
 
-Scrolling follows whichever layer owns the history. Codex, Claude Code, and
-other fullscreen TUIs receive swipe and wheel events directly; a normal shell
-falls back to tmux copy mode. A flick keeps coasting, and the server refreshes
-tmux state so copy mode can always be exited cleanly. **Scroll** sends Page Up
-to the active history layer, or exits tmux copy mode when it is active. The key
-row also provides **← ↑ ↓ →**, while **⋯** contains Page Up/Down, Ctrl-C, tmux
-commands, and the optional text composer.
+Scrolling follows whichever layer owns the history. Fullscreen TUIs receive
+mouse events when they request mouse tracking, or Page Up/Down when they keep
+history internally without mouse tracking; a normal shell falls back to tmux
+copy mode. A flick keeps coasting, and the server refreshes tmux state so copy
+mode can always be exited cleanly. **Scroll** moves the active history layer or
+exits tmux copy mode. The key row also provides **← ↑ ↓ →**, while **⋯** contains
+Page Up/Down, Ctrl-C, Codex's **Shift+←** queued-question shortcut, tmux commands,
+and the optional text composer.
 
 > [!CAUTION]
 > This is interactive shell access as the Unix user running the service. Use
@@ -146,5 +147,6 @@ tailscale serve status
 ## License and references
 
 [MIT](LICENSE) · [Codex commands](https://developers.openai.com/codex/cli/reference)
-· [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code/cli-usage)
+· [Codex TUI bindings](https://github.com/openai/codex/blob/main/codex-rs/tui/src/chatwidget.rs)
+· [Claude Code fullscreen](https://code.claude.com/docs/en/fullscreen)
 · [Tailscale Serve](https://tailscale.com/docs/features/tailscale-serve)
