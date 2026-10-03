@@ -52,11 +52,14 @@ export function wheelDeltaToPixels(deltaY, deltaMode, lineHeight) {
   return -delta;
 }
 
-// Fullscreen terminal applications keep their own history. When xterm reports
-// that the application requested mouse tracking, wheel events must reach that
-// application instead of opening tmux copy mode.
-export function scrollTargetForMouseMode(mode) {
-  return mode && mode !== "none" ? "terminal" : "tmux";
+// A fullscreen application may own history without enabling terminal mouse
+// reporting. In that case PageUp/PageDown are the only portable way to reach
+// its history; sending wheel events would make the outer tmux enter copy mode.
+export function scrollTargetForPane({ copyMode = false, mouseTracking = false, alternateScreen = false } = {}) {
+  if (copyMode) return "tmux";
+  if (mouseTracking) return "terminal";
+  if (alternateScreen) return "terminal-keys";
+  return "tmux";
 }
 
 export function wheelDeltasForStep(step, lineHeight) {

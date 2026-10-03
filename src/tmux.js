@@ -60,14 +60,21 @@ export async function getCopyModeState(target) {
   validatePaneTarget(target);
   const { stdout } = await runTmux([
     "display-message", "-p", "-t", target,
-    "#{pane_in_mode}\t#{pane_mode}\t#{scroll_position}"
+    "#{pane_in_mode}\t#{pane_mode}\t#{scroll_position}\t#{mouse_any_flag}\t#{alternate_on}"
   ]);
-  const [inMode, paneMode, scrollPosition] = stdout.trimEnd().split("\t");
+  return parsePaneState(stdout);
+}
+
+export function parsePaneState(output) {
+  const stdout = String(output);
+  const [inMode, paneMode, scrollPosition, mouseTracking, alternateScreen] = stdout.trimEnd().split("\t");
   return {
     copyMode: paneMode === "copy-mode",
     paneMode: paneMode || null,
     inMode: inMode === "1",
-    scrollPosition: Number(scrollPosition) || 0
+    scrollPosition: Number(scrollPosition) || 0,
+    mouseTracking: mouseTracking === "1",
+    alternateScreen: alternateScreen === "1"
   };
 }
 

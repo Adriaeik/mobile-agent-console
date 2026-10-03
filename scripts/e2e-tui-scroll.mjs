@@ -73,6 +73,8 @@ async function main() {
     });
     const page = await context.newPage();
     const cdp = await context.newCDPSession(page);
+    const sentFrames = [];
+    page.on("websocket", (socket) => socket.on("framesent", (event) => sentFrames.push(String(event.payload))));
     page.on("pageerror", (error) => console.error(`[pageerror] ${error.message}`));
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
 
@@ -150,6 +152,22 @@ async function main() {
         `visible text changed=${afterButtonText !== beforeButtonText}`);
       check(`${provider.label}: Scroll button does not enter tmux copy mode`, !afterButton.inMode,
         `pane_in_mode=${afterButton.inMode}`);
+
+      if (provider.id === "codex") {
+        sentFrames.length = 0;
+        await page.click("#tmux-controls");
+        await page.getByRole("button", { name: /Answer question/ }).click();
+        await sleep(300);
+        const sentShiftLeft = sentFrames.some((payload) => {
+          try {
+            const message = JSON.parse(payload);
+            return message.type === "input" && message.data === "\u001b[1;2D";
+          } catch {
+            return false;
+          }
+        });
+        check("Codex: Answer question sends Shift+Left", sentShiftLeft, `sent=${sentShiftLeft}`);
+      }
 
       await page.click("#terminal-back");
       await context.request.delete(
