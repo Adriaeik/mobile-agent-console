@@ -10,4 +10,4 @@
 - [x] Verify with real Codex and Claude sessions without exposing transcript text.
 - [x] Run the complete test/check/audit suite.
 - [x] Update README and security notes concisely.
-- [ ] Review the diff for private data, then open the pull request.
+- [x] Review the diff for private data, then open the pull request.
