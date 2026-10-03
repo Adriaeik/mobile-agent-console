@@ -32,6 +32,10 @@ publish an unpatched vulnerability in an issue.
 - Unsent composer drafts live only in per-tab `sessionStorage`, are bounded to
   8,000 characters, and are removed after a successful socket send. A draft can
   still contain sensitive text, so close the tab to discard its tab-scoped data.
+- Notifications are disabled by default and permission is requested only from
+  the session-control toggle. Their title and body are fixed generic strings;
+  transcript text, terminal output, project paths, and session names are never
+  copied into an operating-system notification.
 
 The server refuses to start in production with local authentication or a
 non-loopback listener. Tailscale identity headers are trusted only because the

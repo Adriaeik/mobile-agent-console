@@ -25,6 +25,8 @@ test("service worker intentionally caches no authenticated content", async () =>
   const worker = await readFile(new URL("../public/service-worker.js", import.meta.url), "utf8");
   assert.doesNotMatch(worker, /addEventListener\s*\(\s*["']fetch["']/);
   assert.doesNotMatch(worker, /\bcaches\b|CacheStorage/);
+  assert.match(worker, /notificationclick/);
+  assert.match(worker, /clients\.openWindow/);
 });
 
 test("links the authenticated manifest from the app shell", async () => {

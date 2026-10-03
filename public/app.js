@@ -11,6 +11,14 @@ import { assertCompatibleConfig, deploymentChanged, IncompatibleServerError } fr
 import { reconnectDelay, shouldReconnect } from "./reconnect.js";
 import { clearDraft, loadDraft, saveDraft } from "./drafts.js";
 import { registerServiceWorker } from "./pwa.js";
+import { attentionStatus, deriveAgentStatus } from "./agent-status.js";
+import {
+  disableNotifications,
+  notificationForTransition,
+  notificationsEnabled,
+  requestNotificationOptIn,
+  showAgentNotification,
+} from "./notifications.js";
 
 const $ = (selector) => document.querySelector(selector);
 const state = {
@@ -22,7 +30,8 @@ const state = {
   viewportTimer: null, conversationMode: false, conversationTimer: null,
   conversationLoading: false, conversationGeneration: 0, conversationSignature: null,
   composerBeforeConversation: false, reconnectTimer: null, reconnectAttempt: 0,
-  manualClose: false
+  manualClose: false, agentStatus: null, notificationEnabled: notificationsEnabled(),
+  serviceWorkerRegistration: null
 };
 
 // Held keys and flicks would otherwise emit one websocket message per step; the
@@ -43,6 +52,35 @@ const VIEWPORT_SETTLE = 120;
 function showUpdateBanner(message = "The console was updated. Reload to use the current version.") {
   $("#update-message").textContent = message;
   $("#update-banner").classList.remove("hidden");
+}
+
+function syncNotificationUi() {
+  const button = $("#notification-toggle");
+  const supported = "Notification" in window && "serviceWorker" in navigator;
+  button.disabled = !supported;
+  button.setAttribute("aria-pressed", String(state.notificationEnabled));
+  button.querySelector("span").textContent = supported ? (state.notificationEnabled ? "On" : "Off") : "Unavailable";
+}
+
+async function notifyForStatus(next) {
+  const kind = notificationForTransition({
+    enabled: state.notificationEnabled,
+    hidden: document.hidden,
+    previous: state.agentStatus?.id,
+    next: next.id,
+  });
+  if (kind) {
+    const registration = await state.serviceWorkerRegistration;
+    await showAgentNotification(registration, kind);
+  }
+}
+
+function setAgentStatus(next) {
+  notifyForStatus(next).catch(() => {});
+  state.agentStatus = next;
+  const element = $("#agent-status");
+  element.textContent = next.label;
+  element.dataset.status = next.id;
 }
 
 async function checkDeployment() {
@@ -93,19 +131,22 @@ function renderConversation(payload) {
 }
 
 async function refreshConversation() {
-  if (!state.conversationMode || !state.active || state.conversationLoading) return;
+  if (!state.active || state.conversationLoading) return;
   const generation = state.conversationGeneration;
   state.conversationLoading = true;
   try {
     const payload = await request(`/api/sessions/${encodeURIComponent(state.active.id)}/conversation`);
-    if (state.conversationMode && generation === state.conversationGeneration) renderConversation(payload);
+    if (generation === state.conversationGeneration) {
+      setAgentStatus(deriveAgentStatus(payload, { connected: state.socket?.readyState === WebSocket.OPEN }));
+      if (state.conversationMode) renderConversation(payload);
+    }
   } catch (error) {
     if (state.conversationMode && generation === state.conversationGeneration) {
       renderConversation({ available: false, reason: error.message });
     }
   } finally {
     state.conversationLoading = false;
-    if (state.conversationMode && generation === state.conversationGeneration) {
+    if (state.active && generation === state.conversationGeneration) {
       state.conversationTimer = setTimeout(refreshConversation, document.hidden ? 5000 : 1500);
     }
   }
@@ -147,6 +188,7 @@ function setConversationMode(enabled, { focus = true } = {}) {
     setTimeout(fitTerminal, 0);
     if (focus) state.terminal?.focus();
   }
+  if (state.active) refreshConversation();
 }
 
 function showPage(id) {
@@ -566,6 +608,7 @@ function closeTerminal() {
   const socket = state.socket;
   state.socket = null;
   state.active = null;
+  state.agentStatus = null;
   socket?.close();
   state.terminal?.dispose();
   state.terminal = null;
@@ -598,8 +641,10 @@ function handleSocketMessage(data) {
   });
   if (message.type === "exit") {
     state.manualClose = true;
+    setAgentStatus(deriveAgentStatus(null, { exited: true }));
     $("#terminal-state").textContent = `Terminal exited (${message.exitCode})`;
   }
+  if (message.type === "attention") setAgentStatus(attentionStatus());
   if (message.type === "tmux-state") {
     // Momentum that no longer moves the pane has hit the top of the history.
     state.mouseTracking = message.mouseTracking === true;
@@ -626,12 +671,16 @@ function scheduleReconnect() {
   clearTimeout(state.reconnectTimer);
   state.reconnectTimer = null;
   if (!shouldReconnect({ active: state.active, manualClose: state.manualClose, online: navigator.onLine !== false })) {
-    if (state.active && navigator.onLine === false) $("#terminal-state").textContent = "Offline · waiting to reconnect";
+    if (state.active && navigator.onLine === false) {
+      setAgentStatus(deriveAgentStatus(null, { connected: false }));
+      $("#terminal-state").textContent = "Offline · waiting to reconnect";
+    }
     return;
   }
   const delay = reconnectDelay(state.reconnectAttempt);
   state.reconnectAttempt += 1;
   $("#terminal-state").textContent = `Reconnecting in ${Math.ceil(delay / 1000)}s…`;
+  setAgentStatus(deriveAgentStatus(null, { connected: false }));
   state.reconnectTimer = setTimeout(connectTerminalSocket, delay);
 }
 
@@ -646,6 +695,7 @@ function connectTerminalSocket() {
   socket.addEventListener("open", () => {
     if (state.socket !== socket) return;
     state.reconnectAttempt = 0;
+    setAgentStatus(deriveAgentStatus({ available: false }));
     if (!state.conversationMode) $("#terminal-state").textContent = "Live tmux · window 0";
     fitTerminal();
     if (!state.conversationMode) state.terminal.focus();
@@ -668,6 +718,7 @@ function reconnectNow() {
   if (!shouldReconnect({ active: state.active, manualClose: state.manualClose, online: navigator.onLine !== false })) return;
   if ([WebSocket.CONNECTING, WebSocket.OPEN].includes(state.socket?.readyState)) return;
   state.reconnectAttempt = 0;
+  state.agentStatus = null;
   connectTerminalSocket();
 }
 
@@ -679,6 +730,7 @@ function openTerminal(id, name) {
   setConversationMode(false, { focus: false });
   setCopyMode(false);
   $("#terminal-name").textContent = name;
+  setAgentStatus(deriveAgentStatus(null, { connected: false }));
   $("#terminal-state").textContent = "Connecting…";
   $("#message").value = loadDraft(sessionStorage, id);
   $("#terminal").replaceChildren();
@@ -843,6 +895,15 @@ $("#composer-toggle").addEventListener("click", () => {
   closeTmuxControls();
   setComposerVisible(visible);
 });
+$("#notification-toggle").addEventListener("click", async () => {
+  if (state.notificationEnabled) {
+    disableNotifications();
+    state.notificationEnabled = false;
+  } else {
+    state.notificationEnabled = await requestNotificationOptIn();
+  }
+  syncNotificationUi();
+});
 $("#tmux-close").addEventListener("click", closeTmuxControls);
 document.querySelectorAll("[data-tmux-key]").forEach((button) => button.addEventListener("click", () => {
   sendTmuxKey(button.dataset.tmuxKey);
@@ -900,7 +961,8 @@ $("#terminal").addEventListener("wheel", (event) => {
   queueScrollPixels(pixels);
 }, { passive: false, capture: true });
 
-registerServiceWorker().catch(() => {});
+state.serviceWorkerRegistration = registerServiceWorker().catch(() => null);
+syncNotificationUi();
 
 init().catch((error) => {
   $("#identity").textContent = error.message;

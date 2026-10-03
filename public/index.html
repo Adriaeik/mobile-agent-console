@@ -75,7 +75,7 @@
   <section id="terminal-page" class="terminal-page hidden" aria-label="Terminal session">
     <header class="terminal-header">
       <button id="terminal-back" class="icon-button" aria-label="Back">‹</button>
-      <div class="terminal-title"><strong id="terminal-name"></strong><span id="terminal-state">Connecting…</span></div>
+      <div class="terminal-title"><strong id="terminal-name"></strong><span class="terminal-details"><span id="agent-status" class="agent-status">Connecting</span><span aria-hidden="true">·</span><span id="terminal-state">Connecting…</span></span></div>
       <button id="view-toggle" class="view-toggle" aria-controls="terminal conversation" aria-pressed="false" aria-label="Show chat view">Chat</button>
       <button id="tmux-controls" class="icon-button" aria-label="Terminal controls">⋯</button>
       <button id="terminal-fit" class="icon-button" aria-label="Fit terminal">⛶</button>
@@ -121,6 +121,7 @@
       <button data-copy-scroll="page-down"><strong>Page down</strong><span>PgDn</span></button>
       <button id="tmux-exit-copy"><strong>Exit scroll</strong><span>q</span></button>
       <button id="composer-toggle" aria-controls="composer" aria-expanded="false"><strong>Text composer</strong><span>Show</span></button>
+      <button id="notification-toggle" aria-pressed="false"><strong>Notifications</strong><span>Off</span></button>
     </div>
     <p class="control-heading">tmux prefix commands</p>
     <p class="dialog-copy">These send <kbd>Ctrl-B</kbd> followed by the shown key.</p>
