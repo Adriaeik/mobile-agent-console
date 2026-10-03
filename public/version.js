@@ -1,4 +1,4 @@
-export const API_PROTOCOL_VERSION = 1;
+export const API_PROTOCOL_VERSION = 2;
 
 export class IncompatibleServerError extends Error {
   constructor() {

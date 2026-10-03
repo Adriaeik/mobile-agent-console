@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { readdir, realpath } from "node:fs/promises";
 import path from "node:path";
@@ -13,6 +13,27 @@ function tmuxArgs(args) {
 
 export async function runTmux(args, options = {}) {
   return execFileAsync("tmux", tmuxArgs(args), { maxBuffer: 2 * 1024 * 1024, ...options });
+}
+
+export function loadTmuxBuffer(name, data) {
+  if (!/^mobile-agent-console-[A-Za-z0-9-]+$/.test(name)) {
+    return Promise.reject(new InputError("Invalid tmux buffer name."));
+  }
+  return new Promise((resolve, reject) => {
+    const child = spawn("tmux", tmuxArgs(["load-buffer", "-b", name, "-"]), {
+      stdio: ["pipe", "ignore", "pipe"],
+    });
+    let stderr = "";
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(stderr.trim() || `tmux load-buffer exited with status ${code}`));
+    });
+    child.stdin.on("error", reject);
+    child.stdin.end(data);
+  });
 }
 
 export function shouldEnableTmuxMouse(value = process.env.TMUX_MOUSE) {
