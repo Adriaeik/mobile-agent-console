@@ -82,8 +82,13 @@
     </header>
     <div id="terminal" aria-label="Interactive terminal"></div>
     <section id="conversation" class="conversation hidden" aria-label="Filtered conversation" tabindex="-1">
+      <div class="conversation-tools">
+        <input id="conversation-search" type="search" placeholder="Search conversation" aria-label="Search conversation">
+        <span id="conversation-search-count" aria-live="polite"></span>
+      </div>
       <div id="conversation-messages" class="conversation-messages"></div>
       <div id="conversation-empty" class="conversation-empty hidden"></div>
+      <button id="conversation-latest" class="conversation-latest hidden" type="button">↓ Latest</button>
     </section>
     <div class="key-row" aria-label="Terminal control keys">
       <button data-key="\u001b">Esc</button>

@@ -37,10 +37,13 @@ Normalize those records on the server and expose them through the authenticated
 closed. Responses contain no transcript paths, provider session IDs, raw
 records, or tool payloads and are bounded by message and byte limits.
 
-The browser renders plain text with DOM `textContent`, polls only while the
-optional view is open, and preserves an older reading position. The original
-xterm/WebSocket connection remains alive so switching back restores the same
-interactive terminal. Conversation input uses that same authenticated socket.
+The browser renders a deliberately small Markdown subset by creating DOM nodes;
+raw HTML is never parsed or inserted. It polls while a session is active and
+preserves an older reading position. The original xterm/WebSocket connection
+remains alive so switching back restores the same interactive terminal.
+Conversation input uses that same authenticated socket. A successful socket
+write is shown as a local pending user turn and removed when an equal user turn
+appears in the provider transcript.
 The server writes message text and Enter to the PTY as separate ordered events;
 current agent TUIs can otherwise interpret a combined text-and-Enter write as a
 paste and leave it unsubmitted in their editor.
@@ -77,6 +80,10 @@ behavior.
   sessions; raw shells and custom providers keep terminal mode.
 - Messages entered in Conversation view still go to the live TUI rather than
   modifying provider transcript storage directly.
+- Pending turns are ephemeral browser state and are reconciled by bounded text
+  equality; they are never written into provider storage by this application.
+- The supported Markdown surface is headings, paragraphs, ordered and unordered
+  lists, inline code, and fenced code. Links, images, and raw HTML remain text.
 - Provider persistence schemas may change. All parsing is isolated, allowlisted,
   schema-tested, and designed to become unavailable rather than return unknown
   record types.

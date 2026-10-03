@@ -167,6 +167,9 @@ async function main() {
       check(`${provider.label}: Enter sends and clears the message`,
         await page.locator("#message").inputValue() === "",
         `remaining characters=${(await page.locator("#message").inputValue()).length}`);
+      check(`${provider.label}: sent message appears immediately as pending`,
+        await page.locator(".conversation-message.pending", { hasText: chatPrompt }).count() === 1,
+        `pending=${await page.locator(".conversation-message.pending").count()}`);
       await page.waitForFunction(
         ({ prompt, marker }) => {
           const messages = [...document.querySelectorAll(".conversation-message")];
@@ -181,9 +184,18 @@ async function main() {
       );
       check(`${provider.label}: sent message and reply appear in conversation view`, true,
         `received ${responseMarker}`);
+      check(`${provider.label}: transcript reconciles the pending message once`,
+        await page.locator(".conversation-message.pending").count() === 0 &&
+          await page.locator(".conversation-message.user", { hasText: chatPrompt }).count() === 1,
+        `pending=${await page.locator(".conversation-message.pending").count()}`);
       check(`${provider.label}: status returns to Waiting for input after reply`,
         await page.locator("#agent-status").getAttribute("data-status") === "waiting",
         await page.locator("#agent-status").innerText());
+      await page.locator("#conversation-search").fill(responseMarker);
+      check(`${provider.label}: conversation search finds the prompt and reply`,
+        await page.locator("#conversation-search-count").innerText() === "1/2",
+        await page.locator("#conversation-search-count").innerText());
+      await page.locator("#conversation-search").fill("");
 
       await page.locator("#conversation").evaluate((element) => { element.scrollTop = 0; });
       await swipeConversation();

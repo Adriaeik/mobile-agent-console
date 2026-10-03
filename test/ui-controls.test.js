@@ -41,3 +41,10 @@ test("offers an explicit notification opt-in in session controls", async () => {
   assert.match(html, /id="notification-toggle"/);
   assert.match(html, /Notifications/);
 });
+
+test("conversation view offers compact search and jump controls", async () => {
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  assert.match(html, /id="conversation-search"[^>]+type="search"/);
+  assert.match(html, /id="conversation-search-count"[^>]+aria-live="polite"/);
+  assert.match(html, /id="conversation-latest"/);
+});
