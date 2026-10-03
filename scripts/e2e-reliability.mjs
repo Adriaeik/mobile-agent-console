@@ -76,7 +76,21 @@ async function main() {
     isMobile: true,
     hasTouch: true,
   });
+  await context.grantPermissions(["notifications"], { origin: `http://127.0.0.1:${PORT}` });
+  await context.addInitScript(() => {
+    window.__shownNotifications = [];
+    if (globalThis.ServiceWorkerRegistration) {
+      ServiceWorkerRegistration.prototype.showNotification = async function showNotification(title, options) {
+        window.__shownNotifications.push({ title, body: options?.body, tag: options?.tag });
+      };
+    }
+  });
   const page = await context.newPage();
+  let conversation = { available: true, provider: "codex", messages: [{ role: "user", text: "Test request", timestamp: Date.now() }] };
+  await page.route("**/api/sessions/*/conversation", (route) => route.fulfill({
+    contentType: "application/json",
+    body: JSON.stringify(conversation),
+  }));
 
   try {
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
@@ -88,6 +102,25 @@ async function main() {
     check("authenticated content is not cached", (await page.evaluate(() => caches.keys())).length === 0);
 
     await openSession(page);
+    await page.waitForFunction(() => document.querySelector("#agent-status")?.dataset.status === "working");
+    check("active agent status shows Working", await page.textContent("#agent-status") === "Working");
+    await page.click("#tmux-controls");
+    await page.click("#notification-toggle");
+    await page.waitForFunction(() => document.querySelector("#notification-toggle")?.getAttribute("aria-pressed") === "true");
+    check("notification opt-in is enabled by its button", await page.getAttribute("#notification-toggle", "aria-pressed") === "true");
+    await page.click("#tmux-close");
+    await page.evaluate(() => Object.defineProperty(document, "hidden", { configurable: true, get: () => true }));
+    conversation = { available: true, provider: "codex", messages: [{ role: "assistant", text: "Test response", timestamp: Date.now() }] };
+    await page.waitForFunction(() => document.querySelector("#agent-status")?.dataset.status === "waiting");
+    await page.waitForFunction(() => window.__shownNotifications.some(({ tag }) => tag === "mobile-agent-console-ready"));
+    const readyNotification = await page.evaluate(() => window.__shownNotifications.find(({ tag }) => tag === "mobile-agent-console-ready"));
+    check("ready transition uses a generic notification", readyNotification.body === "An active session is waiting for input.");
+
+    await tmux("send-keys", "-t", `${SESSION}:0.0`, "printf '\\a'", "Enter");
+    await page.waitForFunction(() => window.__shownNotifications.some(({ tag }) => tag === "mobile-agent-console-attention"));
+    const attentionNotification = await page.evaluate(() => window.__shownNotifications.find(({ tag }) => tag === "mobile-agent-console-attention"));
+    check("terminal bell notification contains no terminal output", attentionNotification.body === "An active terminal session requested attention.");
+
     await page.click("#tmux-controls");
     await page.click("#composer-toggle");
     const draft = "echo reliability-draft-sent";

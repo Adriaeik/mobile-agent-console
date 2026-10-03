@@ -12,6 +12,7 @@ import { createSession, ensureTmuxMouse, getCopyModeState, getSessionPane, hasSe
 import { InputError, parseAllowedRoots, validateDirectory, validateOption, validatePrompt, validateSessionName } from "./validation.js";
 import { API_PROTOCOL_VERSION, SERVER_INSTANCE_ID } from "./version.js";
 import { heartbeatClients, markAlive } from "./heartbeat.js";
+import { createBellDetector } from "./attention.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
@@ -145,6 +146,7 @@ sockets.on("connection", (ws, req) => {
   const target = `${req.sessionId}:0.0`;
   let controlQueue = Promise.resolve();
   let submissionQueue = Promise.resolve();
+  const detectBell = createBellDetector();
   const sendJson = (message) => {
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(message));
   };
@@ -171,6 +173,7 @@ sockets.on("connection", (ws, req) => {
   });
   terminal.onData((data) => {
     sendJson({ type: "output", data });
+    if (detectBell(data)) sendJson({ type: "attention" });
   });
   terminal.onExit(({ exitCode }) => {
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: "exit", exitCode }));

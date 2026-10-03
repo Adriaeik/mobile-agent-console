@@ -146,6 +146,9 @@ async function main() {
       check(`${provider.label}: conversation view contains both roles`,
         conversation.users > 0 && conversation.assistants > 0,
         `${conversation.messages} messages (${conversation.users} user, ${conversation.assistants} assistant)`);
+      check(`${provider.label}: completed turn shows Waiting for input`,
+        await page.locator("#agent-status").getAttribute("data-status") === "waiting",
+        await page.locator("#agent-status").innerText());
       check(`${provider.label}: conversation view replaces terminal controls`,
         conversation.terminalHidden && conversation.keysHidden,
         `terminalHidden=${conversation.terminalHidden}, keysHidden=${conversation.keysHidden}`);
@@ -178,6 +181,9 @@ async function main() {
       );
       check(`${provider.label}: sent message and reply appear in conversation view`, true,
         `received ${responseMarker}`);
+      check(`${provider.label}: status returns to Waiting for input after reply`,
+        await page.locator("#agent-status").getAttribute("data-status") === "waiting",
+        await page.locator("#agent-status").innerText());
 
       await page.locator("#conversation").evaluate((element) => { element.scrollTop = 0; });
       await swipeConversation();

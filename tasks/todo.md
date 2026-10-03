@@ -52,13 +52,13 @@
 ## Checkpoint: reliability PR
 
 - [x] Tasks 1–4 pass all tests and browser verification.
-- [ ] PR merged, branch removed, production restarted and healthy.
+- [x] PR merged, branch removed, production restarted and healthy.
 
 ## Task 5: Agent status
 
 **Acceptance criteria:**
-- [ ] Active Codex/Claude sessions show Working or Waiting for input.
-- [ ] Disconnected and exited states take precedence.
+- [x] Active Codex/Claude sessions show Working or Waiting for input.
+- [x] Disconnected and exited states take precedence.
 
 **Verification:** status derivation tests and real-provider browser checks.
 
@@ -69,9 +69,9 @@
 ## Task 6: Opt-in notifications
 
 **Acceptance criteria:**
-- [ ] Permission is requested only by the notification toggle click.
-- [ ] Hidden-page ready/attention transitions use generic service-worker notifications.
-- [ ] Clicking a notification focuses or opens the console.
+- [x] Permission is requested only by the notification toggle click.
+- [x] Hidden-page ready/attention transitions use generic service-worker notifications.
+- [x] Clicking a notification focuses or opens the console.
 
 **Verification:** notification decision tests and browser API instrumentation.
 
@@ -82,8 +82,8 @@
 ## Task 7: Terminal attention
 
 **Acceptance criteria:**
-- [ ] Terminal bell produces a deduplicated attention event.
-- [ ] No terminal contents are copied into notification text.
+- [x] Terminal bell produces a deduplicated attention event.
+- [x] No terminal contents are copied into notification text.
 
 **Verification:** WebSocket event tests and browser notification instrumentation.
 
@@ -93,7 +93,7 @@
 
 ## Checkpoint: status PR
 
-- [ ] Tasks 5–7 pass all tests and real-provider verification.
+- [x] Tasks 5–7 pass all tests and real-provider verification.
 - [ ] PR merged, branch removed, production healthy.
 
 ## Task 8: Safe Markdown

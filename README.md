@@ -35,12 +35,14 @@ The console can:
   user and assistant text without tool runs, reasoning, command output, or diffs,
   and send new messages from the same view;
 - type directly in the terminal or open an optional text composer, with the key
-  row and composer lifting above the on-screen keyboard; and
+  row and composer lifting above the on-screen keyboard;
 - scroll inside fullscreen agent TUIs or through ordinary tmux history, with
   quick controls and common or custom `Ctrl-B` commands;
 - reconnect automatically after brief network changes while keeping unsent text
   in the current browser tab; and
-- install as a standalone web app without caching terminal or conversation data.
+- install as a standalone web app without caching terminal or conversation data;
+- show whether the active agent is working or waiting, with optional generic
+  notifications for completed turns and terminal attention bells.
 
 Scrolling follows whichever layer owns the history. Fullscreen TUIs receive
 mouse events when they request mouse tracking, or Page Up/Down when they keep

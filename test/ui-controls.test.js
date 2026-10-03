@@ -35,3 +35,9 @@ test("offers a reload banner for a changed server deployment", async () => {
   assert.match(html, /id="update-banner"[^>]+role="status"/);
   assert.match(html, /id="reload-app"/);
 });
+
+test("offers an explicit notification opt-in in session controls", async () => {
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  assert.match(html, /id="notification-toggle"/);
+  assert.match(html, /Notifications/);
+});

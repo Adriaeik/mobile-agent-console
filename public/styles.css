@@ -70,6 +70,10 @@ textarea { resize: vertical; }
 .terminal-title { min-width: 0; flex: 1; display: grid; text-align: center; }
 .terminal-title strong { overflow: hidden; text-overflow: ellipsis; }
 .terminal-title span { color: var(--muted); font-size: .68rem; }
+.terminal-details { display: flex; min-width: 0; justify-content: center; gap: 4px; overflow: hidden; white-space: nowrap; }
+.terminal-details #terminal-state { overflow: hidden; text-overflow: ellipsis; }
+.agent-status[data-status="working"] { color: #8dd8ff; }
+.agent-status[data-status="waiting"], .agent-status[data-status="attention"] { color: var(--accent); }
 #terminal { min-height: 0; padding: 8px; overflow: hidden; touch-action: pinch-zoom; overscroll-behavior: contain; }
 #terminal .xterm { height: 100%; }
 .conversation { min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y pinch-zoom; padding: 16px 12px 28px; background: #090b0e; scrollbar-gutter: stable; }
