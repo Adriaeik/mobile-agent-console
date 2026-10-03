@@ -21,6 +21,14 @@ import {
 } from "./notifications.js";
 import { renderSafeMarkdown } from "./safe-markdown.js";
 import { addPendingMessage, mergePendingMessages, searchMessages } from "./conversation-state.js";
+import {
+  loadPins,
+  loadProviderFilter,
+  organizeSessions,
+  savePins,
+  saveProviderFilter,
+  togglePin,
+} from "./sessions.js";
 
 const $ = (selector) => document.querySelector(selector);
 const state = {
@@ -34,7 +42,8 @@ const state = {
   composerBeforeConversation: false, reconnectTimer: null, reconnectAttempt: 0,
   manualClose: false, agentStatus: null, notificationEnabled: notificationsEnabled(),
   serviceWorkerRegistration: null, conversationPayload: null, pendingMessages: [],
-  conversationMessages: [], searchMatches: [], searchCursor: -1
+  conversationMessages: [], searchMatches: [], searchCursor: -1,
+  sessionQuery: "", sessionProvider: loadProviderFilter(), pins: loadPins()
 };
 
 // Held keys and flicks would otherwise emit one websocket message per step; the
@@ -290,16 +299,41 @@ function renderSessions() {
   const root = $("#sessions");
   root.replaceChildren();
   if (!state.sessions.length) return root.append($("#empty-template").content.cloneNode(true));
-  for (const session of state.sessions) {
+  const visible = organizeSessions(state.sessions, {
+    query: state.sessionQuery,
+    provider: state.sessionProvider,
+    pins: state.pins,
+  });
+  if (!visible.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty filtered-empty";
+    empty.innerHTML = "<span>⌕</span><h2>No matching sessions</h2><p>Change the search or provider filter.</p>";
+    root.append(empty);
+    return;
+  }
+  const providerLabels = { codex: "Codex", claude: "Claude", shell: "Shell", other: "Other" };
+  for (const session of visible) {
     const card = document.createElement("article");
     card.className = "session-card";
-    card.innerHTML = `<div><h2></h2><p class="command"></p><p class="cwd"></p><div class="session-actions"><button class="open">Open terminal</button><button class="kill">End session</button></div></div><div class="session-meta"><span class="badge"></span></div>`;
+    card.innerHTML = `<div><h2></h2><p class="command"></p><p class="cwd"></p><div class="session-actions"><button class="open">Open terminal</button><button class="kill">End session</button></div></div><div class="session-meta"><button class="pin-session" type="button"></button><span class="badge"></span></div>`;
     card.querySelector("h2").textContent = session.name;
     card.querySelector(".command").textContent = session.command || "unknown";
     card.querySelector(".cwd").textContent = session.cwd || "window 0 unavailable";
     const badge = card.querySelector(".badge");
-    badge.textContent = session.dead ? "exited" : `${age(session.created)} · ${session.attached} attached`;
+    const activity = age(session.lastActivity || session.created);
+    badge.textContent = session.dead ? "exited" : `${providerLabels[session.provider] || "Other"} · ${activity}`;
     badge.classList.toggle("live", !session.dead);
+    const pin = card.querySelector(".pin-session");
+    const pinned = state.pins.has(session.name);
+    pin.textContent = pinned ? "★" : "☆";
+    pin.classList.toggle("active", pinned);
+    pin.setAttribute("aria-pressed", String(pinned));
+    pin.setAttribute("aria-label", `${pinned ? "Unpin" : "Pin"} ${session.name}`);
+    pin.addEventListener("click", () => {
+      state.pins = togglePin(state.pins, session.name);
+      savePins(localStorage, state.pins);
+      renderSessions();
+    });
     card.querySelector(".open").addEventListener("click", () => openTerminal(session.id, session.name));
     card.querySelector(".kill").addEventListener("click", () => endSession(session.id, session.name));
     root.append(card);
@@ -874,6 +908,7 @@ async function init() {
     return option;
   });
   $("#provider").replaceChildren(...options);
+  $("#session-provider").value = state.sessionProvider;
   providerChanged();
   await refreshSessions();
   setInterval(() => { if (!state.active) refreshSessions(); }, 5000);
@@ -881,6 +916,15 @@ async function init() {
 }
 
 $("#refresh").addEventListener("click", refreshSessions);
+$("#session-search").addEventListener("input", (event) => {
+  state.sessionQuery = event.currentTarget.value;
+  renderSessions();
+});
+$("#session-provider").addEventListener("change", (event) => {
+  state.sessionProvider = event.currentTarget.value;
+  saveProviderFilter(localStorage, state.sessionProvider);
+  renderSessions();
+});
 $("#reload-app").addEventListener("click", () => location.reload());
 $("#new-session").addEventListener("click", () => showPage("create-page"));
 document.querySelectorAll(".back").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.target)));

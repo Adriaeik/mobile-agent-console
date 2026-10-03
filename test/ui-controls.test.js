@@ -48,3 +48,11 @@ test("conversation view offers compact search and jump controls", async () => {
   assert.match(html, /id="conversation-search-count"[^>]+aria-live="polite"/);
   assert.match(html, /id="conversation-latest"/);
 });
+
+test("dashboard offers session search, provider filter, and pin controls", async () => {
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  assert.match(html, /id="session-search"[^>]+type="search"/);
+  assert.match(html, /id="session-provider"/);
+  const app = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
+  assert.match(app, /pin-session/);
+});

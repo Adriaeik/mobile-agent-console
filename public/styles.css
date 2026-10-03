@@ -30,6 +30,8 @@ button { color: inherit; cursor: pointer; touch-action: manipulation; -webkit-to
 .spacer { width: 44px; }
 .identity-strip { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: .84rem; padding: 12px 2px 20px; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 14px #b9ff6688; }
+.session-tools { display: grid; grid-template-columns: minmax(0, 1fr) 112px; gap: 8px; margin-bottom: 14px; }
+.session-tools input, .session-tools select { min-width: 0; min-height: 42px; padding: 9px 11px; font-size: .78rem; }
 .session-list { display: grid; gap: 10px; }
 .session-card { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 10px; text-align: left; padding: 17px; border: 1px solid var(--line); background: linear-gradient(145deg, var(--panel), #0f1216); border-radius: 18px; }
 .session-card > div:first-child { min-width: 0; }
@@ -37,6 +39,8 @@ button { color: inherit; cursor: pointer; touch-action: manipulation; -webkit-to
 .session-card h2 { margin: 0 0 7px; font-size: 1.08rem; }
 .session-card p { margin: 0; color: var(--muted); font: .75rem/1.45 ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 68vw; }
 .session-meta { display: flex; gap: 7px; align-items: flex-start; }
+.pin-session { width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2); color: var(--muted); font-size: .9rem; }
+.pin-session.active { border-color: #557a2b; color: var(--accent); }
 .badge { border: 1px solid var(--line); color: var(--muted); background: var(--panel-2); padding: 5px 8px; border-radius: 999px; font-size: .68rem; white-space: nowrap; }
 .badge.live { color: var(--accent); border-color: #557a2b; }
 .session-actions { display: flex; gap: 8px; margin-top: 12px; }
@@ -62,6 +66,7 @@ textarea { resize: vertical; }
 .empty span { color: var(--accent); font-size: 3rem; }
 .empty h2 { color: var(--text); margin-bottom: 7px; }
 .empty p { margin: 0; }
+.filtered-empty { grid-column: 1 / -1; padding-block: 10vh; }
 .terminal-page { touch-action: manipulation; position: fixed; inset: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; background: #050607; }
 .terminal-header { height: calc(58px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 10px 0; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #1d2228; }
 .terminal-header .icon-button { width: 40px; height: 40px; border-radius: 12px; }

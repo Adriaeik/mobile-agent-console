@@ -135,13 +135,13 @@
 ## Checkpoint: conversation PR
 
 - [x] Tasks 8–10 pass all tests and real-provider verification.
-- [ ] PR merged, branch removed, production healthy.
+- [x] PR merged, branch removed, production healthy.
 
 ## Task 11: Session metadata
 
 **Acceptance criteria:**
-- [ ] Session API includes last activity and a stable provider category.
-- [ ] Unknown commands remain generic rather than guessed.
+- [x] Session API includes last activity and a stable provider category.
+- [x] Unknown commands remain generic rather than guessed.
 
 **Verification:** tmux parsing tests.
 
@@ -152,8 +152,8 @@
 ## Task 12: Organization logic
 
 **Acceptance criteria:**
-- [ ] Search covers name, path, and command.
-- [ ] Provider filter and pinned-first recent ordering are deterministic.
+- [x] Search covers name, path, and command.
+- [x] Provider filter and pinned-first recent ordering are deterministic.
 
 **Verification:** pure organization tests.
 
@@ -164,8 +164,8 @@
 ## Task 13: Dashboard organization UI
 
 **Acceptance criteria:**
-- [ ] Compact search/filter/pin controls work on mobile.
-- [ ] Pins and UI preferences persist without storing conversation content.
+- [x] Compact search/filter/pin controls work on mobile.
+- [x] Pins and UI preferences persist without storing conversation content.
 
 **Verification:** mobile browser dashboard flow and storage inspection.
 

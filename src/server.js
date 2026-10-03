@@ -13,6 +13,7 @@ import { InputError, parseAllowedRoots, validateDirectory, validateOption, valid
 import { API_PROTOCOL_VERSION, SERVER_INSTANCE_ID } from "./version.js";
 import { heartbeatClients, markAlive } from "./heartbeat.js";
 import { createBellDetector } from "./attention.js";
+import { closeRuntime } from "./shutdown.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
@@ -119,6 +120,7 @@ app.use((error, _req, res, _next) => {
 
 const server = http.createServer(app);
 const sockets = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
+const terminals = new Set();
 const heartbeatTimer = setInterval(() => heartbeatClients(sockets.clients), 30000);
 heartbeatTimer.unref();
 sockets.on("close", () => clearInterval(heartbeatTimer));
@@ -171,11 +173,13 @@ sockets.on("connection", (ws, req) => {
     cwd: process.env.HOME,
     env: { ...process.env, TERM: "xterm-256color", COLORTERM: "truecolor" }
   });
+  terminals.add(terminal);
   terminal.onData((data) => {
     sendJson({ type: "output", data });
     if (detectBell(data)) sendJson({ type: "attention" });
   });
   terminal.onExit(({ exitCode }) => {
+    terminals.delete(terminal);
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: "exit", exitCode }));
     ws.close();
   });
@@ -201,8 +205,12 @@ sockets.on("connection", (ws, req) => {
       }
     } catch { /* ignore malformed client messages */ }
   });
-  ws.on("close", () => terminal.kill());
-  ws.on("error", () => terminal.kill());
+  const killTerminal = () => {
+    terminals.delete(terminal);
+    try { terminal.kill(); } catch { /* already exited */ }
+  };
+  ws.on("close", killTerminal);
+  ws.on("error", killTerminal);
   queueControl(() => getCopyModeState(target));
 });
 
@@ -210,5 +218,19 @@ server.listen(port, host, () => {
   console.log(`Mobile Agent Console listening on http://${host}:${port}`);
   console.log(`Authentication mode: ${process.env.AUTH_MODE || "tailscale"}`);
 });
+
+let shuttingDown = false;
+function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  const forceExit = setTimeout(() => process.exit(1), 8000);
+  forceExit.unref();
+  closeRuntime({ heartbeatTimer, sockets, terminals, server }, clearInterval, () => {
+    clearTimeout(forceExit);
+    process.exit(0);
+  });
+}
+process.once("SIGTERM", shutdown);
+process.once("SIGINT", shutdown);
 
 export { app, server };

@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import { readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { InputError, isInside, shellQuote, validateDirectory, validateSessionName } from "./validation.js";
+import { detectProvider, parsePaneMetadata, parseSessionList } from "./session-metadata.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -117,25 +118,22 @@ export async function scrollCopyMode(target, action, count) {
 export async function listSessions() {
   let stdout;
   try {
-    ({ stdout } = await runTmux(["list-sessions", "-F", "#{session_id}\t#{session_name}\t#{session_created}\t#{session_attached}\t#{session_windows}"]));
+    ({ stdout } = await runTmux(["list-sessions", "-F", "#{session_id}\t#{session_name}\t#{session_created}\t#{session_activity}\t#{session_attached}\t#{session_windows}"]));
   } catch (error) {
     if (String(error.stderr || error.message).includes("no server running") || error.code === 1) return [];
     throw error;
   }
-  const sessions = stdout.trim().split("\n").filter(Boolean).map((line) => {
-    const [id, name, created, attached, windows] = line.split("\t");
-    return { id, name, created: Number(created) * 1000, attached: Number(attached), windows: Number(windows) };
-  });
+  const sessions = parseSessionList(stdout);
   await Promise.all(sessions.map(async (session) => {
     try {
       const result = await runTmux(["list-panes", "-t", `${session.id}:0`, "-F", "#{pane_current_command}\t#{pane_current_path}\t#{pane_dead}\t#{pane_pid}"]);
-      const [command, cwd, dead, pid] = result.stdout.trim().split("\t");
-      Object.assign(session, { command, cwd, dead: dead === "1", pid: Number(pid) });
+      const pane = parsePaneMetadata(result.stdout);
+      Object.assign(session, pane, { provider: await detectProvider(pane) });
     } catch {
-      Object.assign(session, { command: "unknown", cwd: "", dead: true, pid: 0 });
+      Object.assign(session, { command: "unknown", cwd: "", dead: true, pid: 0, provider: "other" });
     }
   }));
-  return sessions.sort((a, b) => b.created - a.created);
+  return sessions.sort((a, b) => b.lastActivity - a.lastActivity);
 }
 
 export async function createSession({ name, cwd, launch }) {
