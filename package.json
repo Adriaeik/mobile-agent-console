@@ -19,7 +19,7 @@
     "check": "node --check src/*.js && node --check public/*.js && node --check scripts/*.mjs"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",

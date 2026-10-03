@@ -74,6 +74,10 @@
       <button id="terminal-fit" class="icon-button" aria-label="Fit terminal">⛶</button>
     </header>
     <div id="terminal" aria-label="Interactive terminal"></div>
+    <section id="conversation" class="conversation hidden" aria-label="Filtered conversation" tabindex="-1">
+      <div id="conversation-messages" class="conversation-messages"></div>
+      <div id="conversation-empty" class="conversation-empty hidden"></div>
+    </section>
     <div class="key-row" aria-label="Terminal control keys">
       <button data-key="\u001b">Esc</button>
       <button id="tmux-copy" aria-pressed="false" title="Enter tmux copy mode (Ctrl-B then [)">Scroll</button>
@@ -86,8 +90,8 @@
       </div>
       <button data-key="\r">Enter</button>
     </div>
-    <form id="composer" class="composer hidden">
-      <textarea id="message" rows="1" placeholder="Send text to the terminal…"></textarea>
+    <form id="composer" class="composer hidden" aria-label="Send message to agent">
+      <textarea id="message" rows="1" maxlength="8000" enterkeyhint="send" placeholder="Message the agent…" aria-label="Message"></textarea>
       <button class="send" type="submit" aria-label="Send">↑</button>
     </form>
   </section>
@@ -103,6 +107,7 @@
     <header><h2 id="tmux-title">Terminal controls</h2><button id="tmux-close" class="icon-button" aria-label="Close">×</button></header>
     <p class="control-heading">Terminal keys</p>
     <div class="tmux-actions">
+      <button id="conversation-toggle" aria-controls="conversation" aria-pressed="false"><strong>Conversation view</strong><span>Show</span></button>
       <button data-key="\u0003"><strong>Interrupt</strong><span>Ctrl-C</span></button>
       <button data-key="\u001b[1;2D"><strong>Answer question</strong><span>Shift+←</span></button>
       <button data-copy-scroll="page-up"><strong>Page up</strong><span>PgUp</span></button>

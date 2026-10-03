@@ -31,6 +31,9 @@ The console can:
 - list, open, create, and stop named tmux sessions;
 - launch an agent in a selected project with a model and permission profile;
 - stream the real terminal UI through xterm.js and WebSockets;
+- switch Codex and Claude sessions to a filtered conversation view that shows
+  user and assistant text without tool runs, reasoning, command output, or diffs,
+  and send new messages from the same view;
 - type directly in the terminal or open an optional text composer, with the key
   row and composer lifting above the on-screen keyboard; and
 - scroll inside fullscreen agent TUIs or through ordinary tmux history, with
@@ -45,6 +48,12 @@ exits tmux copy mode. The key row also provides **← ↑ ↓ →**, while **⋯
 Page Up/Down, Ctrl-C, Codex's **Shift+←** queued-question shortcut, tmux commands,
 and the optional text composer.
 
+**Conversation view** is available from **⋯** for active Codex and Claude Code
+sessions. It reads their local session history as the service user and returns
+only allowlisted message types; raw shells and unknown transcript formats stay
+in terminal mode. Its message field opens automatically: press **Enter** to send
+or **Shift+Enter** for a new line.
+
 > [!CAUTION]
 > This is interactive shell access as the Unix user running the service. Use
 > Tailscale Serve, never Funnel or a public reverse proxy. Read
@@ -53,7 +62,7 @@ and the optional text composer.
 ## Requirements
 
 - Linux with systemd user services
-- Node.js 22+, tmux, and Tailscale with tailnet HTTPS enabled
+- Node.js 22.13+, tmux, and Tailscale with tailnet HTTPS enabled
 - Codex, Claude Code, or another terminal agent
 
 Optional built-in agents can be installed with:

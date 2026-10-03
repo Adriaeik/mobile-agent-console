@@ -6,7 +6,9 @@ import { WebSocketServer } from "ws";
 import pty from "node-pty";
 import { assertSafeConfiguration, authMiddleware, authorizeRequest, isLoopback, validateOrigin } from "./security.js";
 import { buildLaunch, loadProviders, publicProvider } from "./providers.js";
-import { createSession, ensureTmuxMouse, getCopyModeState, hasSessionId, killSession, listDirectories, listSessions, scrollCopyMode, setCopyMode } from "./tmux.js";
+import { loadConversationForPane } from "./conversation.js";
+import { submitTerminalInput } from "./terminal-input.js";
+import { createSession, ensureTmuxMouse, getCopyModeState, getSessionPane, hasSessionId, killSession, listDirectories, listSessions, scrollCopyMode, setCopyMode } from "./tmux.js";
 import { InputError, parseAllowedRoots, validateDirectory, validateOption, validatePrompt, validateSessionName } from "./validation.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -52,6 +54,17 @@ app.get("/api/config", (req, res) => {
 
 app.get("/api/sessions", async (_req, res, next) => {
   try { res.json({ sessions: await listSessions() }); } catch (error) { next(error); }
+});
+
+app.get("/api/sessions/:id/conversation", async (req, res, next) => {
+  try {
+    const id = String(req.params.id);
+    if (!/^\$[0-9]+$/.test(id)) throw new InputError("Invalid tmux session id.");
+    if (!await hasSessionId(id)) throw new InputError("Session not found.", 404);
+    const pane = await getSessionPane(id);
+    res.set("Cache-Control", "no-store");
+    res.json(await loadConversationForPane(pane));
+  } catch (error) { next(error); }
 });
 
 app.get("/api/directories", async (req, res, next) => {
@@ -121,6 +134,7 @@ server.on("upgrade", async (req, socket, head) => {
 sockets.on("connection", (ws, req) => {
   const target = `${req.sessionId}:0.0`;
   let controlQueue = Promise.resolve();
+  let submissionQueue = Promise.resolve();
   const sendJson = (message) => {
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(message));
   };
@@ -157,6 +171,10 @@ sockets.on("connection", (ws, req) => {
       const message = JSON.parse(raw.toString());
       if (message.type === "input" && typeof message.data === "string" && message.data.length <= 65536) {
         terminal.write(message.data);
+      } else if (message.type === "submit-input" && typeof message.data === "string" && message.data.length <= 8000) {
+        submissionQueue = submissionQueue
+          .then(() => submitTerminalInput(terminal, message.data))
+          .catch((error) => console.error("terminal submission failed:", error.message));
       } else if (message.type === "copy-mode" && typeof message.enabled === "boolean") {
         queueControl(() => setCopyMode(target, message.enabled));
       } else if (message.type === "copy-scroll") {
