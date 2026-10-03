@@ -112,6 +112,7 @@ async function main() {
     check("notification opt-in is enabled by its button", await page.getAttribute("#notification-toggle", "aria-pressed") === "true");
     await page.click("#tmux-close");
     await page.evaluate(() => Object.defineProperty(document, "hidden", { configurable: true, get: () => true }));
+    const longToken = "mobile-agent-console".repeat(60);
     conversation = {
       available: true,
       provider: "codex",
@@ -119,7 +120,7 @@ async function main() {
         id: `message-${index}`,
         role: index % 2 ? "assistant" : "user",
         text: index === 23
-          ? '# Result\n\n- Test response\n- `inline code`\n\n```js\nconst safe = true;\n```\n\n<img src=x onerror="globalThis.pwned=1"><script>globalThis.pwned=1</script>'
+          ? `# Result\n\n- Test response\n- \`inline code\`\n\n${longToken}\n\n\`\`\`js\nconst safe = true;\n${longToken}\n\`\`\`\n\n<img src=x onerror="globalThis.pwned=1"><script>globalThis.pwned=1</script>`
           : `Conversation line ${index}`,
         timestamp: Date.now() - (24 - index) * 1000,
       })),
@@ -145,6 +146,29 @@ async function main() {
     check("hostile HTML stays inert text",
       await page.locator(".conversation-message img, .conversation-message script").count() === 0 &&
       await page.evaluate(() => globalThis.pwned) === undefined);
+    const conversationWidths = await page.evaluate(() => {
+      const root = document.querySelector("#conversation");
+      const messages = document.querySelector("#conversation-messages");
+      const article = document.querySelector(".conversation-message.assistant:last-of-type");
+      const paragraph = article.querySelector(".message-content p");
+      const pre = article.querySelector("pre");
+      return {
+        rootClient: root.clientWidth,
+        rootScroll: root.scrollWidth,
+        messages: Math.ceil(messages.getBoundingClientRect().width),
+        article: Math.ceil(article.getBoundingClientRect().width),
+        paragraphClient: paragraph.clientWidth,
+        paragraphScroll: paragraph.scrollWidth,
+        pre: Math.ceil(pre.getBoundingClientRect().width),
+      };
+    });
+    check("long prose and code stay within the mobile chat width",
+      conversationWidths.rootScroll === conversationWidths.rootClient &&
+      conversationWidths.messages <= conversationWidths.rootClient &&
+      conversationWidths.article <= conversationWidths.rootClient &&
+      conversationWidths.paragraphScroll === conversationWidths.paragraphClient &&
+      conversationWidths.pre <= conversationWidths.article,
+      JSON.stringify(conversationWidths));
     check("conversation messages show timestamps", await page.locator(".conversation-message time").count() === 24);
 
     const copiedText = await page.locator(".conversation-message.assistant").last().locator(".message-copy").click()

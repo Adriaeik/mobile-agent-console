@@ -56,3 +56,12 @@ test("dashboard offers session search, provider filter, and pin controls", async
   const app = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
   assert.match(app, /pin-session/);
 });
+
+test("conversation layout constrains long messages to the viewport", async () => {
+  const styles = await readFile(new URL("../public/styles.css", import.meta.url), "utf8");
+  assert.match(styles, /\.conversation\s*\{[^}]*overflow-x:\s*hidden/);
+  assert.match(styles, /\.conversation-messages\s*\{[^}]*min-width:\s*0/);
+  assert.match(styles, /\.conversation-message\s*\{[^}]*min-width:\s*0/);
+  assert.match(styles, /\.message-content\s*\{[^}]*overflow-wrap:\s*anywhere/);
+  assert.match(styles, /\.message-content pre\s*\{[^}]*width:\s*100%[^}]*overflow-x:\s*auto/);
+});
