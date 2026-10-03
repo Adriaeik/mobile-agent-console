@@ -121,7 +121,7 @@ textarea { resize: vertical; }
 .arrow-group button { flex: 0 0 auto; min-width: 36px; padding: 9px 4px; font-size: .95rem; line-height: 1.05; }
 .key-row button.active { color: #0a1005; border-color: var(--accent); background: var(--accent); font-weight: 800; }
 .key-row button.held { border-color: var(--accent); background: #1d2a12; }
-.composer { padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: 1fr 44px; gap: 7px; background: #0b0d10; }
+.composer { width: min(776px, calc(100% - 8px)); margin-inline: auto; padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: 1fr 44px; gap: 7px; background: #0b0d10; }
 .composer textarea { min-height: 44px; max-height: 132px; resize: none; padding: 11px; }
 .send { width: 44px; height: 44px; border: 0; border-radius: 13px; background: var(--accent); color: #0a1005; font-size: 1.3rem; font-weight: 900; }
 dialog { width: min(600px, calc(100% - 24px)); max-height: 82dvh; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 16px; }

@@ -35,7 +35,7 @@ publish an unpatched vulnerability in an issue.
 - Clipboard images are accepted only for authenticated, existing sessions;
   checked for a PNG, JPEG, GIF, or WebP signature; limited to 10 MB; and stored with opaque
   names and mode `0600` under
-  `~/.local/share/mobile-agent-console/uploads/`. They are never exposed as web
+  `~/.local/share/mobile-agent-console-data/uploads/`. They are never exposed as web
   routes. Uploaded files remain on disk until the service user removes them.
 - Notifications are disabled by default and permission is requested only from
   the session-control toggle. Their title and body are fixed generic strings;

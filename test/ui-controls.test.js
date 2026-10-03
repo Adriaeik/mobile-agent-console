@@ -65,4 +65,5 @@ test("conversation layout constrains long messages to the viewport", async () =>
   assert.match(styles, /\.conversation-message\s*\{[^}]*min-width:\s*0/);
   assert.match(styles, /\.message-content\s*\{[^}]*overflow-wrap:\s*anywhere/);
   assert.match(styles, /\.message-content pre\s*\{[^}]*width:\s*100%[^}]*overflow-x:\s*auto/);
+  assert.match(styles, /\.composer\s*\{[^}]*width:\s*min\(776px,\s*calc\(100% - 8px\)\)[^}]*margin-inline:\s*auto/);
 });

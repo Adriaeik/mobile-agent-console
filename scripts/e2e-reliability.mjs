@@ -174,6 +174,28 @@ async function main() {
       conversationWidths.paragraphScroll === conversationWidths.paragraphClient &&
       conversationWidths.pre <= conversationWidths.article,
       JSON.stringify(conversationWidths));
+    const composerWidths = [];
+    for (const width of [390, 1440]) {
+      await page.setViewportSize({ width, height: 844 });
+      composerWidths.push(await page.evaluate(() => {
+        const messages = document.querySelector("#conversation-messages").getBoundingClientRect();
+        const textarea = document.querySelector("#message").getBoundingClientRect();
+        const send = document.querySelector("#composer .send").getBoundingClientRect();
+        return {
+          viewport: window.innerWidth,
+          messageLeft: Math.round(messages.left),
+          messageRight: Math.round(messages.right),
+          inputLeft: Math.round(textarea.left),
+          inputRight: Math.round(send.right),
+        };
+      }));
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    check("chat composer aligns with the conversation at mobile and desktop widths",
+      composerWidths.every((item) =>
+        Math.abs(item.messageLeft - item.inputLeft) <= 1 &&
+        Math.abs(item.messageRight - item.inputRight) <= 1),
+      JSON.stringify(composerWidths));
     check("conversation messages show timestamps", await page.locator(".conversation-message time").count() === 24);
 
     const copiedText = await page.locator(".conversation-message.assistant").last().locator(".message-copy").click()

@@ -25,7 +25,7 @@ export function validateImageUpload(contentType, data) {
 
 export function defaultUploadRoot(env = process.env) {
   const dataHome = env.XDG_DATA_HOME || path.join(env.HOME || os.homedir(), ".local", "share");
-  return path.join(dataHome, "mobile-agent-console", "uploads");
+  return path.join(dataHome, "mobile-agent-console-data", "uploads");
 }
 
 export async function saveImageUpload({ sessionId, contentType, data, root = defaultUploadRoot(), id = randomUUID() }) {
