@@ -37,7 +37,10 @@ The console can:
 - type directly in the terminal or open an optional text composer, with the key
   row and composer lifting above the on-screen keyboard; and
 - scroll inside fullscreen agent TUIs or through ordinary tmux history, with
-  quick controls and common or custom `Ctrl-B` commands.
+  quick controls and common or custom `Ctrl-B` commands;
+- reconnect automatically after brief network changes while keeping unsent text
+  in the current browser tab; and
+- install as a standalone web app without caching terminal or conversation data.
 
 Scrolling follows whichever layer owns the history. Fullscreen TUIs receive
 mouse events when they request mouse tracking, or Page Up/Down when they keep
@@ -144,6 +147,7 @@ The browser harnesses use an isolated port and tmux socket:
 ```bash
 node scripts/e2e-scroll.mjs       # shell and tmux-history fallback
 node scripts/e2e-tui-scroll.mjs   # authenticated local Codex and Claude TUIs
+node scripts/e2e-reliability.mjs  # reconnect, drafts, deployment changes, PWA
 ```
 
 Useful production checks:

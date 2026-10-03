@@ -29,3 +29,9 @@ test("offers an accessible message composer for the active agent", async () => {
   assert.match(html, /id="composer"[^>]+aria-label="Send message to agent"/);
   assert.match(html, /id="message"[^>]+placeholder="Message the agent…"/);
 });
+
+test("offers a reload banner for a changed server deployment", async () => {
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  assert.match(html, /id="update-banner"[^>]+role="status"/);
+  assert.match(html, /id="reload-app"/);
+});
