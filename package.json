@@ -26,7 +26,7 @@
     "@xterm/xterm": "^5.5.0",
     "express": "^5.1.0",
     "node-pty": "^1.1.0",
-    "ws": "^8.18.0"
+    "ws": "^8.22.0"
   },
   "allowScripts": {
     "node-pty@1.1.0": true
